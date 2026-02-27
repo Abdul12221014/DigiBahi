@@ -11,6 +11,7 @@ export function ReceiptView() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const autoPrint = searchParams.get('autoprint') === 'true';
+  const printerState = searchParams.get('printer');
 
   const entry = useLiveQuery(async () => {
     if (!id) return null;
@@ -37,6 +38,11 @@ export function ReceiptView() {
 
   const handlePrint = async () => {
     if (!entry) return;
+
+    if (printerState === 'offline') {
+      window.print();
+      return;
+    }
 
     // Check if server printer is available
     const status = await printerService.getStatus();

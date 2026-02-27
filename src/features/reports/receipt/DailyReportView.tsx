@@ -11,6 +11,7 @@ export function DailyReportView() {
     const [loading, setLoading] = useState(true);
     const [searchParams] = useSearchParams();
     const autoPrint = searchParams.get('autoprint') === 'true';
+    const printerState = searchParams.get('printer');
 
     useEffect(() => {
         loadDailyEntries();
@@ -50,6 +51,11 @@ export function DailyReportView() {
 
     const handlePrint = async () => {
         if (loading) return;
+
+        if (printerState === 'offline') {
+            window.print();
+            return;
+        }
 
         const status = await printerService.getStatus();
 

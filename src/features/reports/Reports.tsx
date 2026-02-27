@@ -203,7 +203,7 @@ export function Reports() {
     const top = (window.screen.height - height) / 2;
 
     window.open(
-      `/#/print/receipt/${id}?autoprint=true`,
+      `/#/print/receipt/${id}?autoprint=true&printer=${printerStatus.status}`,
       'ReceiptPrint',
       `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
     );
@@ -239,7 +239,7 @@ export function Reports() {
               const left = (window.screen.width - width) / 2;
               const top = (window.screen.height - height) / 2;
               window.open(
-                `/#/print/daily-report?autoprint=true`,
+                `/#/print/daily-report?autoprint=true&printer=${printerStatus.status}`,
                 'DailyReportPrint',
                 `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
               );
