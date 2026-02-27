@@ -76,7 +76,7 @@ export function useCanvas() {
       el.style.height = `${config.height}px`; // Full canvas height for scrolling
       const ctx = el.getContext('2d', {
         alpha: true,
-        desynchronized: true, // Better performance on tablets
+        desynchronized: false, // Fix: Avoid "black canvas" rendering bug in Chromium browsers
         willReadFrequently: false
       });
       if (ctx) {
@@ -256,7 +256,7 @@ export function useCanvas() {
     if (!ctxRef.current && canvasRef.current) {
       ctxRef.current = canvasRef.current.getContext('2d', {
         alpha: true,
-        desynchronized: true, // Better performance on tablets
+        desynchronized: false, // Fix: Avoid "black canvas" rendering bug in Chromium browsers
         willReadFrequently: false
       });
     }

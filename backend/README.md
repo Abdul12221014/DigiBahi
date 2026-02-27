@@ -89,12 +89,12 @@ JWT_SECRET_KEY="your-jwt-secret"
 
 Development:
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Production:
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 ---
