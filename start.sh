@@ -5,6 +5,8 @@
 
 set -e
 
+# Ensure node/npm from homebrew are in PATH
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 echo "🚀 Starting MUNEEM Application..."
 echo ""
 

@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-02-26T19:25:32.180Z",
+  "status": "FAILED",
+  "error": "Cannot find module '/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service' imported from /Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts",
+  "stack": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service' imported from /Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts\n    at finalizeResolution (node:internal/modules/esm/resolve:274:11)\n    at moduleResolve (node:internal/modules/esm/resolve:864:10)\n    at defaultResolve (node:internal/modules/esm/resolve:990:11)\n    at #cachedDefaultResolve (node:internal/modules/esm/loader:735:20)\n    at ModuleLoader.resolve (node:internal/modules/esm/loader:712:38)\n    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:310:38)\n    at #link (node:internal/modules/esm/module_job:208:49)"
+}

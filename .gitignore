@@ -72,3 +72,4 @@ backend/services/paddle_ocr/haven't
 *.pyc
 *.pyo
 *.pyd
+backend/services/tesseract_ocr/config/vision-key.json

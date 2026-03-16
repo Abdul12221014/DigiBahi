@@ -293,110 +293,15 @@ export default class OCRHybridService {
 
   /**
    * Recognize text from canvas
-   * CRITICAL: On Linux tablets (Raspberry Pi), always routes to backend OCR service
-   * to avoid heavy Tesseract.js WASM processing in browser
-   * 
-   * NEW: Supports smart cropping via boundingBox parameter to reduce image size
+   * Routes all OCR requests to the backend Google Cloud Vision endpoint
+   * for higher accuracy and consistency across all platforms.
    */
   async recognizeCanvas(
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    // CRITICAL FIX: Route to backend on Linux tablets (Raspberry Pi)
-    const ocrMode = options.mode || getRecommendedOCRMode();
-
-    if (ocrMode === 'backend' || isLinuxTablet()) {
-      console.log('[OCRHybridService] Routing to backend OCR (Linux tablet detected)');
-      return this.recognizeWithBackend(canvasEl, options);
-    }
-
-    // NEW: Smart cropping - create temporary canvas with only the drawn content
-    let targetCanvas = canvasEl;
-
-    if (options.boundingBox) {
-      const { x, y, width, height } = options.boundingBox;
-
-      console.log(`[OCRHybridService] Smart cropping enabled: ${width}x${height}px (from ${canvasEl.width}x${canvasEl.height}px)`);
-
-      // Create temporary canvas with cropped dimensions
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = width;
-      tempCanvas.height = height;
-
-      const tempCtx = tempCanvas.getContext('2d');
-      if (tempCtx) {
-        // Draw only the cropped region from source canvas
-        tempCtx.drawImage(
-          canvasEl,
-          x, y, width, height,  // Source rectangle (what to copy)
-          0, 0, width, height   // Destination rectangle (where to paste)
-        );
-        targetCanvas = tempCanvas;
-
-        console.log(`[OCRHybridService] Cropped canvas created successfully`);
-      } else {
-        console.warn('[OCRHybridService] Failed to create cropped canvas, using full canvas');
-      }
-    }
-
-    // CRITICAL FIX: Convert canvas to Blob instead of passing HTMLCanvasElement or ImageData
-    // Why: 1) HTMLCanvasElement cannot be cloned via postMessage (DataCloneError)
-    //      2) ImageData gets corrupted in Chrome's Structured Clone Algorithm
-    // Solution: Convert to Blob (PNG) - reliable, transferable, Tesseract.js native support
-    // Source: Web API spec + Tesseract.js official docs
-
-    console.log(`[OCRHybridService] Converting canvas to Blob: ${targetCanvas.width}x${targetCanvas.height}px`);
-
-    // Convert canvas to Blob (PNG format, high quality for OCR)
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      targetCanvas.toBlob(
-        (b) => {
-          if (b) {
-            console.log(`[OCRHybridService] Blob created successfully: ${b.size} bytes`);
-            resolve(b);
-          } else {
-            reject(new Error('Failed to create blob from canvas'));
-          }
-        },
-        'image/png',
-        0.95 // High quality for OCR accuracy
-      );
-    });
-
-    // Send Blob to worker (reliable, no corruption, no cloning issues)
-    const rawResults = await this.sendMessage('recognize', {
-      blob, // Pass Blob - fixes both corruption and cloning issues
-      options,
-      rois: options.rois
-    });
-
-    // Check if rawResults is valid
-    if (!rawResults) {
-      console.warn('[OCRHybridService] No results from worker');
-      return [];
-    }
-
-    // Flatten results from both engines
-    const allResults: OCRResult[] = [];
-    if (rawResults.tesseract && Array.isArray(rawResults.tesseract)) {
-      allResults.push(...rawResults.tesseract.map((r, i) => ({
-        ...r,
-        type: 'tesseract' as const,
-        id: `tes_${Date.now()}_${i}`
-      })));
-    }
-    if (rawResults.tflite && Array.isArray(rawResults.tflite)) {
-      allResults.push(...rawResults.tflite.map((r, i) => ({
-        ...r,
-        type: 'tflite' as const,
-        id: `tf_${Date.now()}_${i}`
-      })));
-    }
-
-    // Merge and post-process results
-    const merged = mergeResults(allResults);
-
-    return merged;
+    console.log('[OCRHybridService] Routing to Cloud Backend OCR');
+    return this.recognizeWithBackend(canvasEl, options);
   }
 
   /**
@@ -409,10 +314,12 @@ export default class OCRHybridService {
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    // Use OCR service on port 9000 (same host as API)
-    const apiBase = getApiBaseUrl();
-    const ocrHost = apiBase.replace(':8000', ':9000');
-    const ocrEndpoint = `${ocrHost}/recognize`;
+    // Get OCR service URL from environment or fallback to same host on port 9000
+    const ocrBase = import.meta.env.VITE_OCR_SERVICE_URL || 
+                   getApiBaseUrl().replace(':8000', ':9000');
+    
+    // Call the new Google Cloud Vision endpoint
+    const ocrEndpoint = `${ocrBase}/recognize-cloud`;
 
     // NEW: Smart cropping - create temporary canvas if bounding box provided
     let targetCanvas = canvasEl;
@@ -482,11 +389,8 @@ export default class OCRHybridService {
       return [result];
     } catch (error) {
       console.error('[OCRHybridService] Backend OCR request failed:', error);
-      // Fallback to Remote OCR if available
-      if (this.hasRemoteFallback()) {
-        console.log('[OCRHybridService] Falling back to Remote OCR');
-        return this.recognizeWithRemote(canvasEl);
-      }
+      // Removed the remote fallback as we are already calling the Cloud API that is much more capable
+      // If it fails, report it back to the UI directly.
       throw error instanceof Error ? error : new Error('Backend OCR request failed');
     }
   }
