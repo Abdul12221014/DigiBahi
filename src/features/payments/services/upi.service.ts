@@ -25,7 +25,7 @@ export function buildUPIIntentLink(params: {
   txnRef: string;
   payeeName?: string;
 }): string {
-  const { upiId, amount, note, txnRef, payeeName = 'MUNEEM' } = params;
+  const { upiId, amount, note, txnRef, payeeName = 'DigBahi' } = params;
   
   const urlParams = new URLSearchParams({
     pa: upiId,                    // Payee Address (UPI ID)

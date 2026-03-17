@@ -25,7 +25,7 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   // Smart date default: Remember last transaction date or use today
   const getSmartDate = (): string => {
     if (entry?.date) return entry.date;
-    const lastDate = localStorage.getItem('muneem_last_transaction_date');
+    const lastDate = localStorage.getItem('digbahi_last_transaction_date');
     if (lastDate) {
       const last = new Date(lastDate);
       const today = new Date();
@@ -46,7 +46,7 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   // Smart default: Remember last GST rate from localStorage
   const getLastGstRate = (): GSTRate => {
     if (entry?.gstRate) return entry.gstRate as GSTRate;
-    const lastRate = localStorage.getItem('muneem_last_gst_rate');
+    const lastRate = localStorage.getItem('digbahi_last_gst_rate');
     return lastRate ? (parseInt(lastRate) as GSTRate) : 18;
   };
 
@@ -64,14 +64,14 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   // Save GST rate to localStorage when changed
   useEffect(() => {
     if (!entry) { // Only save for new entries, not edits
-      localStorage.setItem('muneem_last_gst_rate', gstRate.toString());
+      localStorage.setItem('digbahi_last_gst_rate', gstRate.toString());
     }
   }, [gstRate, entry]);
 
   // Save transaction date to localStorage when changed (for smart defaults)
   useEffect(() => {
     if (!entry && date) {
-      localStorage.setItem('muneem_last_transaction_date', date);
+      localStorage.setItem('digbahi_last_transaction_date', date);
     }
   }, [date, entry]);
 
@@ -179,7 +179,7 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
         };
         await datasource.create(newEntry);
         // Save date for smart defaults
-        localStorage.setItem('muneem_last_transaction_date', date);
+        localStorage.setItem('digbahi_last_transaction_date', date);
         toast.success('Entry added successfully!');
       }
       onSuccess();
@@ -298,13 +298,13 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
                   >
                     Yesterday
                   </Button>
-                  {localStorage.getItem('muneem_last_transaction_date') && (
+                  {localStorage.getItem('digbahi_last_transaction_date') && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const lastDate = localStorage.getItem('muneem_last_transaction_date');
+                        const lastDate = localStorage.getItem('digbahi_last_transaction_date');
                         if (lastDate) setDate(lastDate);
                       }}
                       className="text-xs"

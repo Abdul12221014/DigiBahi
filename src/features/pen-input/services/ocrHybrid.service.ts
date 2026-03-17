@@ -208,7 +208,7 @@ export default class OCRHybridService {
     reject: (error: Error) => void;
   }>();
 
-  private remoteEndpoint = import.meta.env.VITE_REMOTE_OCR_URL || import.meta.env.VITE_PADDLE_OCR_URL as string | undefined;
+  private remoteEndpoint = import.meta.env.VITE_REMOTE_OCR_URL || import.meta.env.VITE_OCR_SERVICE_URL as string | undefined;
 
   /**
    * Lazy load worker

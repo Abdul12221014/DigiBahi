@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# MUNEEM - One-Click Installation Script
-# Installs all dependencies for Frontend, Backend, and PaddleOCR
+# DigBahi - One-Click Installation Script
+# Installs all dependencies for Frontend, Backend, and OCR Service
 
 set -e  # Exit on error
 
@@ -17,7 +17,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   MUNEEM - One-Click Installation   ║${NC}"
+echo -e "${BLUE}║   DigBahi - One-Click Installation   ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -97,10 +97,10 @@ echo -e "${BLUE}   Tesseract OCR is installed via system package manager (apt/br
 echo -e "${BLUE}   The OCR service uses the system-installed Tesseract${NC}"
 echo -e "${GREEN}✅ Tesseract OCR service configured${NC}"
 
-# Legacy PaddleOCR installation (no longer used)
+# Legacy OCR cleanup
 # The project now uses Tesseract OCR instead
 # Keeping this commented for reference:
-# cd backend/services/paddle_ocr
+# cd backend/services/tesseract_ocr
 # python3 -m venv venv
 # source venv/bin/activate
 # pip install -r requirements.txt

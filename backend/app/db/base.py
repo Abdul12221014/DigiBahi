@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # ARM-friendly SQLite config
-SQLALCHEMY_DATABASE_URL = "sqlite:///./muneem_local.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///./digbahi_local.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

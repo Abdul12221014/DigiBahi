@@ -1,6 +1,6 @@
-# MUNEEM Backend API
+# DigBahi Backend API
 
-FastAPI backend for MUNEEM Accounting Software with secure federated learning support.
+FastAPI backend for DigBahi Accounting Software with secure federated learning support.
 
 ## Features
 
@@ -138,7 +138,7 @@ POST /api/v1/ai/federated/upload
 POST /api/v1/ai/federated/aggregate
 ```
 
-See API documentation at: `http://localhost:8001/docs`
+See API documentation at: `http://localhost:8000/docs`
 
 ---
 
@@ -202,5 +202,5 @@ export FEDERATED_MASTER_SECRET="your-secret"
 
 ## License
 
-Proprietary - MUNEEM Accounting Software
+Proprietary - DigBahi Accounting Software
 

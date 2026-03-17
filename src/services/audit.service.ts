@@ -3,7 +3,7 @@ import { getApiUrl } from '@/lib/api-config';
 
 export interface AuditRow { id: number; user_id: number; action: string; resource: string; timestamp: string; device_id: string }
 
-const AUDIT_CACHE_KEY = 'muneem_audit_cache_v1';
+const AUDIT_CACHE_KEY = 'digbahi_audit_cache_v1';
 
 export const auditService = {
   async fetchRecent(): Promise<AuditRow[]> {

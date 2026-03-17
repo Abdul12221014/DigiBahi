@@ -1,10 +1,10 @@
 # Thermal Printer Hardware Installation Guide
-**For: MUNEEM Accounting System on Raspberry Pi**
+**For: DigBahi Accounting System on Raspberry Pi**
 
 ---
 
 ## 📋 Required Hardware
-- Raspberry Pi 4 or 5 (running the MUNEEM application)
+- Raspberry Pi 4 or 5 (running the DigBahi application)
 - **58mm Thermal Receipt Printer** with serial/UART interface
 - 3x Female-to-Female jumper wires
 - Power supply for the thermal printer (usually 12V DC adapter)

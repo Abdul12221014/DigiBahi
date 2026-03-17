@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Complete
 
-I have successfully implemented a comprehensive **3-Tier Palm Rejection System** for the MUNEEM application, optimized for the Waveshare 10.1" DSI capacitive touchscreen.
+I have successfully implemented a comprehensive **3-Tier Palm Rejection System** for the DigBahi application, optimized for the Waveshare 10.1" DSI capacitive touchscreen.
 
 ---
 

@@ -173,10 +173,10 @@ export function PenInputModal({ open, onClose, onRecognized, targetField, onReco
     pendingStartRef.current = null;
     
     // Check if first time using pen input
-    const hasUsedBefore = localStorage.getItem('muneem_pen_input_used');
+    const hasUsedBefore = localStorage.getItem('digbahi_pen_input_used');
     if (!hasUsedBefore && open) {
       setTimeout(() => setShowFirstTimeTooltip(true), 500);
-      localStorage.setItem('muneem_pen_input_used', 'true');
+      localStorage.setItem('digbahi_pen_input_used', 'true');
     }
   }, [open]);
 

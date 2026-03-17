@@ -86,7 +86,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
             <DialogTitle>Privacy & Data Collection Consent</DialogTitle>
           </div>
           <DialogDescription>
-            MUNEEM Accounting respects your privacy. We collect minimal data to improve OCR accuracy and provide you with better features.
+            DigBahi Accounting respects your privacy. We collect minimal data to improve OCR accuracy and provide you with better features.
           </DialogDescription>
         </DialogHeader>
 

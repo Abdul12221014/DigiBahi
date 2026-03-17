@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🏗️  Building MUNEEM Frontend for Production..."
+echo "🏗️  Building DigBahi Frontend for Production..."
 
 # Install dependencies (if needed)
 if [ ! -d "node_modules" ]; then

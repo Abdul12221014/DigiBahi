@@ -16,9 +16,9 @@ export interface LedgerEntry {
   type: 'sale' | 'purchase' | 'expense' | 'receipt';
   gstRate: number;
   gstAmount: number;
-  party_name: string;
-  reference_no: string;
-  tags: string;
+  party_name?: string;
+  reference_no?: string;
+  tags?: string;
   is_active: boolean;
   deleted_at?: string | null;
   created_by?: number | null;

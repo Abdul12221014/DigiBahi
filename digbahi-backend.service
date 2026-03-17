@@ -1,5 +1,5 @@
 [Unit]
-Description=MUNEEM Accounting Backend
+Description=DigBahi Accounting Backend
 After=network.target
 
 [Service]

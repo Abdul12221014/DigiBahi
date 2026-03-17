@@ -1,6 +1,6 @@
 # DigBahi Application Requirements & Deployment Guide
 
-This document outlines the hardware, software, and dependency requirements needed to run the DigBahi (MUNEEM) application on a local development machine or a Raspberry Pi tablet.
+This document outlines the hardware, software, and dependency requirements needed to run the DigBahi application on a local development machine or a Raspberry Pi tablet.
 
 ---
 

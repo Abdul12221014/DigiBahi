@@ -56,7 +56,7 @@ export function useCanvas() {
     ctx.clearRect(0, 0, bg.width, bg.height);
 
     // Get selected format from localStorage
-    const selectedFormatId = (localStorage.getItem('muneem_format') || 'traditional-khata') as LedgerFormatId;
+    const selectedFormatId = (localStorage.getItem('digbahi_format') || 'traditional-khata') as LedgerFormatId;
     const paperTemplate = getPaperTemplate(selectedFormatId);
 
     // Draw formatted paper background

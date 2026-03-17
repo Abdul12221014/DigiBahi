@@ -1,6 +1,6 @@
 # Documentation Index
 
-This folder contains comprehensive documentation for the MUNEEM Digi-Bahi Ink application.
+This folder contains comprehensive documentation for the DigBahi Digi-Bahi Ink application.
 
 ---
 

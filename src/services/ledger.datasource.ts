@@ -1,7 +1,7 @@
 /**
  * Ledger Data Source Adapter
  * Switches between API and local Dexie based on feature flag
- * IMPORTANT: Uses db.ledger from src/lib/db.ts (main MuneemDB instance)
+ * IMPORTANT: Uses db.ledger from src/lib/db.ts (main DigBahiDB instance)
  */
 
 import { db, LedgerEntry } from '@/lib/db';

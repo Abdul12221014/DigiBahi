@@ -30,7 +30,7 @@ otp_storage = {}
 # Request/Response Models
 class SendOTPRequest(BaseModel):
     phone_number: str = Field(..., description="Phone number (10 digits, without country code)", min_length=10, max_length=10)
-    template_name: Optional[str] = Field("muneem_otp", description="WhatsApp template name")
+    template_name: Optional[str] = Field("digbahi_otp", description="WhatsApp template name")
 
 
 class SendOTPResponse(BaseModel):

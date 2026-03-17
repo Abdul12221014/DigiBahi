@@ -86,7 +86,7 @@ const Index = () => {
     initializeDB();
 
     // Load saved format preference
-    const savedFormat = localStorage.getItem('muneem_format') as LedgerFormatId;
+    const savedFormat = localStorage.getItem('digbahi_format') as LedgerFormatId;
     if (savedFormat) {
       setSelectedFormat(savedFormat);
     }
@@ -117,7 +117,7 @@ const Index = () => {
         const blob = await exportBackup();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = `muneem-backup-${Date.now()}.muneem`;
+        a.href = url; a.download = `digbahi-backup-${Date.now()}.digbahi`;
         document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
         toast.success('Backup created');
@@ -136,13 +136,13 @@ const Index = () => {
       }
     };
 
-    document.addEventListener('muneem:backup', onBackup);
-    document.addEventListener('muneem:restore', onRestore);
-    document.addEventListener('muneem:sync', onSync);
+    document.addEventListener('digbahi:backup', onBackup);
+    document.addEventListener('digbahi:restore', onRestore);
+    document.addEventListener('digbahi:sync', onSync);
     return () => {
-      document.removeEventListener('muneem:backup', onBackup);
-      document.removeEventListener('muneem:restore', onRestore);
-      document.removeEventListener('muneem:sync', onSync);
+      document.removeEventListener('digbahi:backup', onBackup);
+      document.removeEventListener('digbahi:restore', onRestore);
+      document.removeEventListener('digbahi:sync', onSync);
     };
   }, []);
 
@@ -174,7 +174,7 @@ const Index = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-6">
         {/* hidden file input for restore */}
-        <input ref={restoreInputRef} type="file" accept=".muneem,application/octet-stream" className="hidden" onChange={handleRestoreFile} />
+        <input ref={restoreInputRef} type="file" accept=".digbahi,application/octet-stream" className="hidden" onChange={handleRestoreFile} />
         {showPenCanvas ? (
           <ErrorBoundary fallback={<div className="p-6 border rounded-lg bg-card"><p className="text-destructive">⚠️ Pen input failed to load</p><Button onClick={() => setShowPenCanvas(false)} variant="outline">Back to Dashboard</Button></div>}>
             <Suspense fallback={<div className="p-6 text-center">🕓 Initializing pen input...</div>}>
@@ -264,7 +264,7 @@ const Index = () => {
                 currentFormat={selectedFormat}
                 onFormatSelect={(formatId) => {
                   setSelectedFormat(formatId);
-                  localStorage.setItem('muneem_format', formatId);
+                  localStorage.setItem('digbahi_format', formatId);
                 }}
               />
             </TabsContent>
@@ -280,7 +280,7 @@ const Index = () => {
                   setShowEntryForm(true);
                   // Trigger pen input modal after form opens
                   setTimeout(() => {
-                    const event = new CustomEvent('muneem:open-pen-input');
+                    const event = new CustomEvent('digbahi:open-pen-input');
                     window.dispatchEvent(event);
                   }, 100);
                 }}
@@ -359,16 +359,16 @@ const Index = () => {
               <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
                 <img
                   src="/1.png"
-                  alt="MUNEEM Logo"
+                  alt="DigBahi Logo"
                   className="w-full h-full object-contain"
                 />
               </div>
               <span className="text-lg font-bold bg-gradient-to-r from-[hsl(145_70%_32%)] to-[hsl(40_98%_48%)] bg-clip-text text-transparent">
-                MUNEEM
+                DigBahi
               </span>
             </div>
             <div className="text-sm text-muted-foreground space-y-1">
-              <p className="font-medium">MUNEEM Accounting Solutions © 2025</p>
+              <p className="font-medium">DigBahi Accounting Solutions © 2025</p>
               <p>Professional accounting software for Indian SMEs</p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-# MUNEEM - Setup Guide for Team
+# DigBahi - Setup Guide for Team
 
 **Quick setup guide for team members to get the application running locally.**
 
@@ -31,8 +31,8 @@ npm --version
 
 ```bash
 # Clone repository
-git clone https://github.com/soni-pvt-ltd/MUNEEM.git
-cd MUNEEM
+git clone https://github.com/soni-pvt-ltd/DigBahi.git
+cd DigBahi
 
 # Run one-click install script
 ./install.sh
@@ -55,8 +55,8 @@ npm run install:all
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/soni-pvt-ltd/MUNEEM.git
-cd MUNEEM
+git clone https://github.com/soni-pvt-ltd/DigBahi.git
+cd DigBahi
 ```
 
 ### 2. Install Frontend Dependencies
@@ -98,7 +98,7 @@ cd ..
 ### 4. Setup Tesseract OCR (Optional - for OCR features)
 
 ```bash
-cd backend/services/paddle_ocr
+cd backend/services/tesseract_ocr
 
 # Create virtual environment
 python3 -m venv venv
@@ -165,7 +165,7 @@ source venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # Terminal 2: Tesseract OCR (optional)
-cd backend/services/paddle_ocr
+cd backend/services/tesseract_ocr
 source venv/bin/activate
 uvicorn ocr_service:app --host 0.0.0.0 --port 9000
 
@@ -279,7 +279,7 @@ curl http://localhost:8000/api/v1/health
 ```
 
 ### 2. Check Frontend
-Open http://localhost:5173 in browser - should see MUNEEM login page
+Open http://localhost:5173 in browser - should see DigBahi login page
 
 ### 3. Check OCR (if installed)
 ```bash

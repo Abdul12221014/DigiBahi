@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# MUNEEM Application Startup Script
+# DigBahi Application Startup Script
 # Starts all services with a single command
 
 set -e
 
 # Ensure node/npm from homebrew are in PATH
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-echo "🚀 Starting MUNEEM Application..."
+echo "🚀 Starting DigBahi Application..."
 echo ""
 
 # Get the script directory

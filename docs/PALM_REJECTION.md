@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MUNEEM app now includes a sophisticated **3-Tier Palm Rejection System** optimized for capacitive touchscreens (like the Waveshare 10.1" DSI) that don't have active digitizers.
+The DigBahi app now includes a sophisticated **3-Tier Palm Rejection System** optimized for capacitive touchscreens (like the Waveshare 10.1" DSI) that don't have active digitizers.
 
 ## The Problem
 

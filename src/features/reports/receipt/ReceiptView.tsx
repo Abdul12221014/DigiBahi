@@ -54,7 +54,7 @@ export function ReceiptView() {
           .reset()
           .align('center')
           .bold(true)
-          .textLine('MUNEEM')
+          .textLine('DigBahi')
           .bold(false)
           .textLine('Professional Accounting')
           .textLine('Ph: +91 98765 43210')
@@ -127,7 +127,7 @@ export function ReceiptView() {
 
       {/* Header */}
       <div className="text-center mb-4 border-b border-black pb-2 border-dashed">
-        <h1 className="text-base font-bold uppercase tracking-wider">MUNEEM</h1>
+        <h1 className="text-base font-bold uppercase tracking-wider">DigBahi</h1>
         <p className="text-[10px]">Professional Accounting</p>
         <p className="text-[10px] mt-1">Ph: +91 98765 43210</p>
       </div>

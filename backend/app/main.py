@@ -23,7 +23,7 @@ except ImportError as e:
     federated_router = None
     FEDERATED_AVAILABLE = False
 
-app = FastAPI(title="MUNEEM Local API")
+app = FastAPI(title="DigBahi Local API")
 
 # Add CORS middleware - Allow all origins for LAN access
 app.add_middleware(

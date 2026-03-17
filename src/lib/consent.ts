@@ -1,5 +1,5 @@
 /**
- * Consent Management for MUNEEM
+ * Consent Management for DigBahi
  * 
  * Handles user consent for telemetry, federated learning, and analytics.
  * Stores consent state in localStorage and logs to audit trail.
@@ -14,7 +14,7 @@ export interface ConsentRecord {
   version: string; // Privacy policy version
 }
 
-const CONSENT_KEY_PREFIX = 'muneem_consent_';
+const CONSENT_KEY_PREFIX = 'digbahi_consent_';
 const CONSENT_VERSION = 'v1.0.0'; // Update when privacy policy changes
 
 /**
@@ -116,7 +116,7 @@ function logConsentEvent(record: ConsentRecord): void {
   
   // For now, store in a separate localStorage key for debugging
   try {
-    const auditKey = 'muneem_consent_audit';
+    const auditKey = 'digbahi_consent_audit';
     const existing = localStorage.getItem(auditKey);
     const audit = existing ? JSON.parse(existing) : [];
     

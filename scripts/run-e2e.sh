@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Configuration
-STAGING_URL="${STAGING_URL:-http://localhost:8001}"
+STAGING_URL="${STAGING_URL:-http://localhost:8000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:8080}"
 ARTIFACTS_DIR="./artifacts/ocr"
 

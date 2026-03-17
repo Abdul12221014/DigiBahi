@@ -113,7 +113,7 @@ export function Dashboard() {
             variant="outline"
             size="sm"
             onClick={() => {
-              const event = new CustomEvent('muneem:navigate', { detail: { tab: 'ledger' } });
+              const event = new CustomEvent('digbahi:navigate', { detail: { tab: 'ledger' } });
               window.dispatchEvent(event);
             }}
             className="touch-friendly"

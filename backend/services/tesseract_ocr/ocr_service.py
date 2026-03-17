@@ -43,7 +43,7 @@ except Exception as e:
     VISION_ENABLED = False
 
 
-app = FastAPI(title="MUNEEM Tesseract OCR Service")
+app = FastAPI(title="DigBahi Tesseract OCR Service")
 
 # Add CORS middleware
 app.add_middleware(
@@ -63,7 +63,7 @@ def health_check():
 @app.get("/")
 def root():
     return {
-        "service": "MUNEEM Tesseract OCR Service",
+        "service": "DigBahi Tesseract OCR Service",
         "engine": "Tesseract 5.x + Google Cloud Vision",
         "status": "running",
         "endpoints": {

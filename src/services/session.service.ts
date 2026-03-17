@@ -1,6 +1,6 @@
 import { encryptObject, decryptObject } from '@/lib/localStore';
 
-const KEY = 'muneem_session_v1';
+const KEY = 'digbahi_session_v1';
 
 async function saveSession(session: { token: string; expiresAt: string }) {
   const store = await encryptObject(session, '1234');

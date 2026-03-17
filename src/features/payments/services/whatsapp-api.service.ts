@@ -35,7 +35,7 @@ class WhatsAppAPIService {
   /**
    * Send OTP via WhatsApp Business API
    */
-  async sendOTP(phoneNumber: string, templateName: string = 'muneem_otp'): Promise<SendOTPResponse> {
+  async sendOTP(phoneNumber: string, templateName: string = 'digbahi_otp'): Promise<SendOTPResponse> {
     try {
       const response = await fetch(`${WHATSAPP_API_ENDPOINT}/send-otp`, {
         method: 'POST',

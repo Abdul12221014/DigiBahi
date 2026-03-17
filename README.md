@@ -1,4 +1,4 @@
-# MUNEEM
+# DigBahi
 
 <div align="center">
 
@@ -37,7 +37,7 @@
 
 ## 🎯 Overview
 
-**MUNEEM** is a modern, tablet-first accounting solution designed specifically for Indian small and medium enterprises (SMEs). Built as a Progressive Web App (PWA), it combines traditional accounting practices with cutting-edge technology, offering a seamless experience that works offline and integrates with modern payment systems.
+**DigBahi** is a modern, tablet-first accounting solution designed specifically for Indian small and medium enterprises (SMEs). Built as a Progressive Web App (PWA), it combines traditional accounting practices with cutting-edge technology, offering a seamless experience that works offline and integrates with modern payment systems.
 
 ### Key Highlights
 
@@ -217,7 +217,7 @@ cd ..
 #### Step 4: Setup Tesseract OCR Service (Optional)
 
 ```bash
-cd backend/services/paddle_ocr
+cd backend/services/tesseract_ocr
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -266,7 +266,7 @@ WHATSAPP_BUSINESS_ACCOUNT_ID=your_business_account_id
 WHATSAPP_API_VERSION=v22.0
 
 # Database Configuration
-DATABASE_URL=sqlite:///./muneem_local.db
+DATABASE_URL=sqlite:///./digbahi_local.db
 
 # Security
 SECRET_KEY=your_secret_key_here
@@ -280,7 +280,7 @@ To enable WhatsApp features (OTP, invoice sharing):
 
 1. Create a Meta Business Account
 2. Set up WhatsApp Business API
-3. Create message templates (e.g., `muneem_otp`)
+3. Create message templates (e.g., `digbahi_otp`)
 4. Add credentials to `backend/.env`
 5. Add test phone numbers to allowed list
 
@@ -390,7 +390,7 @@ digi-bahi-ink/
 │   │   ├── services/     # Business logic
 │   │   └── main.py       # FastAPI application
 │   └── services/
-│       └── paddle_ocr/   # OCR service
+│       └── tesseract_ocr/   # OCR service
 ├── public/               # Static assets
 └── dist/                 # Production build output
 ```
@@ -503,10 +503,10 @@ npm run preview
 
 ```bash
 # Build Docker image
-docker build -t muneem:latest .
+docker build -t digbahi:latest .
 
 # Run container
-docker run -p 5173:5173 -p 8000:8000 muneem:latest
+docker run -p 5173:5173 -p 8000:8000 digbahi:latest
 ```
 
 > 📖 **See:** [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed deployment instructions.
@@ -577,7 +577,7 @@ npm run build
 - 📖 Check [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed setup instructions
 - 💬 Check [WHATSAPP_INTEGRATION.md](./WHATSAPP_INTEGRATION.md) for WhatsApp setup
 - 🐛 Open an issue on GitHub
-- 📧 Contact support: support@muneem.in
+- 📧 Contact support: support@digbahi.in
 
 ---
 
@@ -654,7 +654,7 @@ For Linux tablet deployment (Raspberry Pi 4/5 with 7" touchscreen):
 
 ## 🇮🇳 GST Compliance
 
-MUNEEM implements official Indian GST tax slabs:
+DigBahi implements official Indian GST tax slabs:
 
 | Rate | Category | Examples |
 |------|----------|----------|
@@ -694,7 +694,7 @@ MUNEEM implements official Indian GST tax slabs:
 ### Desktop (Chrome/Edge)
 
 1. Click install icon (⊕) in address bar
-2. Or go to Settings → **Install MUNEEM**
+2. Or go to Settings → **Install DigBahi**
 3. App opens as standalone window
 
 ---
@@ -739,16 +739,16 @@ MUNEEM implements official Indian GST tax slabs:
 
 ### Contact
 
-- 📧 **Email:** support@muneem.in
-- 🌐 **Website:** [https://muneem.in](https://muneem.in)
-- 💬 **Community:** [https://community.muneem.in](https://community.muneem.in)
+- 📧 **Email:** support@digbahi.in
+- 🌐 **Website:** [https://digbahi.in](https://digbahi.in)
+- 💬 **Community:** [https://community.digbahi.in](https://community.digbahi.in)
 - 🐛 **Issues:** [GitHub Issues](https://github.com/soni-pvt-ltd/DigBahi/issues)
 
 ---
 
 ## 📄 License
 
-© 2025 MUNEEM Accounting Solutions. All rights reserved.
+© 2025 DigBahi Accounting Solutions. All rights reserved.
 
 This software is proprietary and confidential. Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited.
 
@@ -764,8 +764,8 @@ Built with ❤️ for Indian SMEs
 
 <div align="center">
 
-**[⬆ Back to Top](#muneem)**
+**[⬆ Back to Top](#digbahi)**
 
-Made with ❤️ by MUNEEM Accounting Solutions
+Made with ❤️ by DigBahi Accounting Solutions
 
 </div>

@@ -3,8 +3,8 @@
  * Generates invoice numbers in format: INV-YYYY-XXX
  */
 
-const INVOICE_NUMBER_KEY = 'muneem_last_invoice_number';
-const INVOICE_YEAR_KEY = 'muneem_invoice_year';
+const INVOICE_NUMBER_KEY = 'digbahi_last_invoice_number';
+const INVOICE_YEAR_KEY = 'digbahi_invoice_year';
 
 /**
  * Get next invoice number (preview, doesn't increment)

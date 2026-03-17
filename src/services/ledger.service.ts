@@ -14,7 +14,7 @@ export interface LedgerLocal {
 class LedgerDB extends Dexie {
   entries!: Dexie.Table<LedgerLocal, number>;
   constructor() {
-    super('muneem_ledger');
+    super('digbahi_ledger');
     this.version(1).stores({ entries: '++id, date, type, synced, createdAt' });
   }
 }

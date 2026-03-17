@@ -431,7 +431,6 @@ export function InlinePenInput({
   }, [canvasDimensions]);
   
   // Recognize text with single attempt and optimized preprocessing
-  // Falls back to PaddleOCR when local engine returns nothing
   const recognizeWithRetry = useCallback(async (
     canvas: HTMLCanvasElement,
     attempt: number = 1,
@@ -488,51 +487,9 @@ export function InlinePenInput({
         ? results.reduce((sum, r) => sum + (r.confidence || 0), 0) / results.length 
         : 0;
       
-      // Try PaddleOCR fallback if:
-      // 1. No results from local OCR, OR
-      // 2. Low confidence (< 0.5) from local OCR
-      const shouldUsePaddleFallback = ocrService.hasPaddleFallback() && 
-        (results.length === 0 || avgConfidence < 0.5);
-      
-      if (shouldUsePaddleFallback) {
-        console.warn('[OCR Debug] Local OCR returned poor results (empty or low confidence). Falling back to PaddleOCR service...');
-        try {
-          const paddleResults = await ocrService.recognizeWithPaddle(canvas);
-          console.log('[OCR Debug] PaddleOCR results:', paddleResults);
-          
-          // If PaddleOCR returned better results, use them
-          if (paddleResults.length > 0) {
-            const paddleConfidence = paddleResults.reduce((sum, r) => sum + (r.confidence || 0), 0) / paddleResults.length;
-            if (paddleConfidence > avgConfidence || results.length === 0) {
-              console.log('[OCR Debug] Using PaddleOCR results (better confidence)');
-              return paddleResults;
-            }
-          }
-        } catch (paddleError) {
-          console.warn('[OCR Debug] PaddleOCR fallback failed:', paddleError);
-          // Continue with local results if PaddleOCR fails
-        }
-      }
-      
       return results;
     } catch (error) {
       console.error('[OCR Debug] Recognition error:', error);
-      
-      // If local OCR fails completely, try PaddleOCR as last resort
-      if (ocrService.hasPaddleFallback()) {
-        console.warn('[OCR Debug] Local OCR failed. Trying PaddleOCR as fallback...');
-        try {
-          const paddleResults = await ocrService.recognizeWithPaddle(canvas);
-          console.log('[OCR Debug] PaddleOCR fallback results:', paddleResults);
-          if (paddleResults.length > 0) {
-            return paddleResults;
-          }
-        } catch (paddleError) {
-          console.error('[OCR Debug] PaddleOCR fallback also failed:', paddleError);
-        }
-      }
-      
-      // If all OCR attempts failed, throw the original error
       throw error;
     }
   }, [extractCleanImage]);

@@ -1,11 +1,11 @@
 [Unit]
-Description=MUNEEM Frontend (Static)
+Description=DigBahi Frontend (Static)
 After=network.target
 
 [Service]
 User=pi
 WorkingDirectory=/home/pi/digi-bahi-ink/dist
-ExecStart=/usr/bin/python3 -m http.server 5173
+ExecStart=/usr/bin/npx serve -s /home/pi/digi-bahi-ink/dist -l 5173
 Restart=always
 RestartSec=10
 

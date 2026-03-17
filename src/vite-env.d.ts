@@ -2,12 +2,12 @@
 
 
 interface DocumentEventMap {
-    "muneem:backup": CustomEvent;
-    "muneem:restore": CustomEvent;
-    "muneem:sync": CustomEvent;
-    "muneem:open-pen-input": CustomEvent;
+    "digbahi:backup": CustomEvent;
+    "digbahi:restore": CustomEvent;
+    "digbahi:sync": CustomEvent;
+    "digbahi:open-pen-input": CustomEvent;
 }
 
 interface WindowEventMap {
-    "muneem:open-pen-input": CustomEvent;
+    "digbahi:open-pen-input": CustomEvent;
 }

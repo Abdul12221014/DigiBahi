@@ -379,7 +379,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
       setShowOCRToast(true);
 
       // Auto-open correction overlay based on user preference
-      const shouldShowOverlay = localStorage.getItem('muneem_show_corrections_overlay');
+      const shouldShowOverlay = localStorage.getItem('digbahi_show_corrections_overlay');
       if (shouldShowOverlay === 'true' || shouldShowOverlay === null) {
         setShowCorrectionOverlay(true);
       }

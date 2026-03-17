@@ -193,14 +193,14 @@ To make it start on boot, create autostart file:
 
 ```bash
 mkdir -p ~/.config/autostart
-nano ~/.config/autostart/muneem.desktop
+nano ~/.config/autostart/digbahi.desktop
 ```
 
 **Paste this:**
 ```ini
 [Desktop Entry]
 Type=Application
-Name=MUNEEM Kiosk
+Name=DigBahi Kiosk
 Exec=/home/pi/DigBahi/scripts/start-kiosk.sh
 Hidden=false
 NoDisplay=false
@@ -330,6 +330,6 @@ cat /proc/device-tree/model
 
 **Contact:**  
 - GitHub: https://github.com/soni-pvt-ltd/DigBahi  
-- Email: support@muneem.in
+- Email: support@digbahi.in
 
 **Last Updated:** February 13, 2026

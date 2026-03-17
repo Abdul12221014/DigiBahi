@@ -43,7 +43,7 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
   const [refreshLedger, setRefreshLedger] = useState(0);
 
   // Get selected format from localStorage
-  const selectedFormatId = (localStorage.getItem('muneem_format') || 'traditional-khata') as LedgerFormatId;
+  const selectedFormatId = (localStorage.getItem('digbahi_format') || 'traditional-khata') as LedgerFormatId;
   const format = getFormatById(selectedFormatId);
 
   // Real-time sync: Listen for ledger events from other devices

@@ -23,7 +23,7 @@ const ToolPalette: React.FC<Props> = ({ onUndo, onRedo, onClear, onRecognize, is
 
   // NEW: Toggle for auto-showing correction overlay
   const [showCorrectionsOnRecognize, setShowCorrectionsOnRecognize] = useState(() => {
-    const saved = localStorage.getItem('muneem_show_corrections_overlay');
+    const saved = localStorage.getItem('digbahi_show_corrections_overlay');
     return saved !== null ? saved === 'true' : true; // Default: true
   });
 
@@ -43,7 +43,7 @@ const ToolPalette: React.FC<Props> = ({ onUndo, onRedo, onClear, onRecognize, is
 
   const handleToggleCorrections = (checked: boolean) => {
     setShowCorrectionsOnRecognize(checked);
-    localStorage.setItem('muneem_show_corrections_overlay', checked.toString());
+    localStorage.setItem('digbahi_show_corrections_overlay', checked.toString());
     toast.info(checked ? 'Corrections overlay enabled' : 'Corrections overlay disabled');
   };
 
@@ -261,16 +261,16 @@ const ToolPalette: React.FC<Props> = ({ onUndo, onRedo, onClear, onRecognize, is
 
           {/* Backup / Restore / Sync / AI Learning - Always visible on tablet+ */}
           <div className="flex gap-2 flex-shrink-0">
-            <Button size="default" variant="outline" title="Backup" onClick={() => document.dispatchEvent(new CustomEvent('muneem:backup'))} className="touch-manipulation min-h-[44px] px-3">Backup</Button>
-            <Button size="default" variant="outline" title="Restore" onClick={() => document.dispatchEvent(new CustomEvent('muneem:restore'))} className="touch-manipulation min-h-[44px] px-3">Restore</Button>
-            <Button size="default" variant="outline" title="Sync" onClick={() => document.dispatchEvent(new CustomEvent('muneem:sync'))} className="touch-manipulation min-h-[44px] px-3">Sync</Button>
-            <Button size="default" variant="outline" title="Run AI Analysis" onClick={() => document.dispatchEvent(new CustomEvent('muneem:ai-refresh'))} className="touch-manipulation min-w-[44px] min-h-[44px]">
+            <Button size="default" variant="outline" title="Backup" onClick={() => document.dispatchEvent(new CustomEvent('digbahi:backup'))} className="touch-manipulation min-h-[44px] px-3">Backup</Button>
+            <Button size="default" variant="outline" title="Restore" onClick={() => document.dispatchEvent(new CustomEvent('digbahi:restore'))} className="touch-manipulation min-h-[44px] px-3">Restore</Button>
+            <Button size="default" variant="outline" title="Sync" onClick={() => document.dispatchEvent(new CustomEvent('digbahi:sync'))} className="touch-manipulation min-h-[44px] px-3">Sync</Button>
+            <Button size="default" variant="outline" title="Run AI Analysis" onClick={() => document.dispatchEvent(new CustomEvent('digbahi:ai-refresh'))} className="touch-manipulation min-w-[44px] min-h-[44px]">
               <BarChart3 className="w-5 h-5" />
             </Button>
-            <Button size="default" variant="outline" title="Train AI Model" onClick={() => document.dispatchEvent(new CustomEvent('muneem:ai-train'))} className="touch-manipulation min-w-[44px] min-h-[44px]">
+            <Button size="default" variant="outline" title="Train AI Model" onClick={() => document.dispatchEvent(new CustomEvent('digbahi:ai-train'))} className="touch-manipulation min-w-[44px] min-h-[44px]">
               <Brain className="w-5 h-5" />
             </Button>
-            <Button size="default" variant="outline" title="Sync AI Model" onClick={() => document.dispatchEvent(new CustomEvent('muneem:ai-sync'))} className="touch-manipulation min-w-[44px] min-h-[44px]">
+            <Button size="default" variant="outline" title="Sync AI Model" onClick={() => document.dispatchEvent(new CustomEvent('digbahi:ai-sync'))} className="touch-manipulation min-w-[44px] min-h-[44px]">
               <Upload className="w-5 h-5" />
             </Button>
           </div>

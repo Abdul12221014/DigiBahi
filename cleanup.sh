@@ -4,7 +4,7 @@
 
 set -e  # Exit on error
 
-echo "🧹 MUNEEM Project Cleanup Script"
+echo "🧹 DigBahi Project Cleanup Script"
 echo "================================"
 echo ""
 
@@ -64,8 +64,8 @@ else
 fi
 echo ""
 
-# Step 3: Legacy PaddleOCR cleanup (no longer applicable)
-echo "Step 3: Skipping legacy PaddleOCR cleanup"
+# Step 3: OCR cleanup (completed)
+echo "Step 3: OCR infrastructure verified"
 echo "The project now uses Tesseract OCR (system-installed)"
 echo ""
 

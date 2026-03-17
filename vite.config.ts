@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -25,7 +24,9 @@ export default defineConfig(({ mode }) => ({
       'annalisa-actinodrome-pablo.ngrok-free.dev'
     ],
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -34,8 +35,9 @@ export default defineConfig(({ mode }) => ({
   assetsInclude: ["**/*.md"],
   // Environment variables (can be overridden by .env file)
   define: {
-    'import.meta.env.VITE_PADDLE_OCR_URL': JSON.stringify(
-      process.env.VITE_PADDLE_OCR_URL || 'http://localhost:9000/recognize'
-    ),
+    'import.meta.env.VITE_OCR_SERVICE_URL': JSON.stringify(
+      process.env.VITE_OCR_SERVICE_URL || 'http://localhost:9000'
+    )
+,
   },
 }));

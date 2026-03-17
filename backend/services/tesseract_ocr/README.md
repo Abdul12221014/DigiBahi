@@ -1,6 +1,6 @@
 ## Tesseract OCR Microservice
 
-Self-hosted handwriting OCR service for MUNEEM. Runs Tesseract OCR behind a small FastAPI server.
+Self-hosted handwriting OCR service for DigBahi. Runs Tesseract OCR behind a small FastAPI server.
 
 ### Requirements
 
@@ -10,7 +10,7 @@ Self-hosted handwriting OCR service for MUNEEM. Runs Tesseract OCR behind a smal
 ### Setup
 
 ```bash
-cd backend/services/paddle_ocr
+cd backend/services/tesseract_ocr
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -22,5 +22,5 @@ pip install -r requirements.txt
 uvicorn ocr_service:app --host 0.0.0.0 --port 9000
 ```
 
-Set `VITE_PADDLE_OCR_URL=http://<host>:9000/recognize` in the frontend env.
+Set `VITE_OCR_SERVICE_URL=http://<host>:9000` in the frontend env.
 

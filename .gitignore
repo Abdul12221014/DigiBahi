@@ -61,7 +61,8 @@ backend/digbahi_local.db
 backend/test_inventory.db
 
 # Misnamed venv folders
-backend/services/paddle_ocr/haven't
+backend/services/tesseract_ocr/venv
+en't
 
 # Temporary files
 *.tmp

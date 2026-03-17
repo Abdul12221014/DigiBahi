@@ -53,14 +53,14 @@ class WhatsAppService:
         # If other format, return cleaned
         return cleaned
     
-    def send_otp(self, phone_number: str, otp_code: str, template_name: str = "muneem_otp") -> Dict[str, Any]:
+    def send_otp(self, phone_number: str, otp_code: str, template_name: str = "digbahi_otp") -> Dict[str, Any]:
         """
         Send OTP via WhatsApp Business API using template message
         
         Args:
             phone_number: Recipient phone number (10 digits or with country code)
             otp_code: 6-digit OTP code
-            template_name: WhatsApp template name (default: "muneem_otp")
+            template_name: WhatsApp template name (default: "digbahi_otp")
         
         Returns:
             Dict with success status and message ID or error details
