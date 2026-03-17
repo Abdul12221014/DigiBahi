@@ -57,7 +57,7 @@ import { flush } from '@/services/sync.service';
 import useOnline from '@/hooks/useOnline';
 
 const Index = () => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const online = useOnline();
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | undefined>(undefined);
@@ -90,6 +90,22 @@ const Index = () => {
     if (savedFormat) {
       setSelectedFormat(savedFormat);
     }
+
+    // Developer Auto-Login: Ensure a user exists in session storage for local testing
+    // This allows saving transactions when running locally without a separate login step
+    import('@/lib/auth').then(({ getCurrentUser, setCurrentUser }) => {
+      if (!getCurrentUser()) {
+        setCurrentUser({
+          id: 'dev-admin',
+          username: 'admin',
+          name: 'Administrator',
+          role: 'admin',
+          pinHash: '', // Not needed for dev session
+          is_active: true
+        });
+        console.info('🛠️ Developer auto-login active');
+      }
+    });
   }, []);
 
   const handleEntrySuccess = () => {
@@ -200,19 +216,19 @@ const Index = () => {
               <TabsList className="inline-flex items-center gap-1 p-1.5 bg-card shadow-medium rounded-lg">
                 <TabsTrigger value="dashboard" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                   <LayoutDashboard className="w-4 h-4 mr-2" />
-                  Dashboard
+                  {t('dashboard')}
                 </TabsTrigger>
                 <TabsTrigger value="formats" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                   <Book className="w-4 h-4 mr-2" />
-                  Formats
+                  {t('formats', 'Formats')}
                 </TabsTrigger>
                 <TabsTrigger value="ledger" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                   <BookOpen className="w-4 h-4 mr-2" />
-                  Ledger
+                  {t('ledger')}
                 </TabsTrigger>
                 <TabsTrigger value="reports" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                   <FileText className="w-4 h-4 mr-2" />
-                  Reports
+                  {t('reports')}
                 </TabsTrigger>
                 {ENABLE_AI_FEATURES && (
                   <>
@@ -246,11 +262,11 @@ const Index = () => {
                 )}
                 <TabsTrigger value="whatsapp" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                   <MessageCircle className="w-4 h-4 mr-2" />
-                  WhatsApp
+                  {t('whatsapp', 'WhatsApp')}
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                   <SettingsIcon className="w-4 h-4 mr-2" />
-                  Settings
+                  {t('settings', 'Settings')}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -358,7 +374,7 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
                 <img
-                  src="/1.png"
+                  src="/digbahi-logo.png"
                   alt="DigBahi Logo"
                   className="w-full h-full object-contain"
                 />

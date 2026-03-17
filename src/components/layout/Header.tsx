@@ -28,7 +28,7 @@ const Header: React.FC<Props> = ({ onOpenPen }) => {
           <div className="flex items-center gap-3 animate-slide-in">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-medium overflow-hidden">
               <img 
-                src="/1.png" 
+                src="/digbahi-logo.png" 
                 alt="DigBahi Logo" 
                 className="w-full h-full object-contain"
               />
