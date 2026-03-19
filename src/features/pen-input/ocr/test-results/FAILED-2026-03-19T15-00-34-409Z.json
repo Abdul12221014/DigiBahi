@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-03-19T15:00:34.410Z",
+  "status": "FAILED",
+  "error": "Cannot read properties of undefined (reading 'VITE_REMOTE_OCR_URL')",
+  "stack": "TypeError: Cannot read properties of undefined (reading 'VITE_REMOTE_OCR_URL')\n    at OCRHybridService.<instance_members_initializer> (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:211:44)\n    at new OCRHybridService (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:203:1)\n    at getOCRHybridService (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:489:16)\n    at runOCRAccuracyTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:256:25)\n    at runAllOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:512:33)\n    at runOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/scripts/run-ocr-tests.js:62:27)"
+}

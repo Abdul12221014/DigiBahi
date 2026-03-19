@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-03-19T14:57:47.133Z",
+  "status": "FAILED",
+  "error": "document is not defined",
+  "stack": "ReferenceError: document is not defined\n    at createTestCanvas (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:55:18)\n    at <anonymous> (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:123:13)\n    at ModuleJob.run (node:internal/modules/esm/module_job:371:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:669:26)\n    at async runOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/scripts/run-ocr-tests.js:37:24)"
+}

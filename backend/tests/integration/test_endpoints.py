@@ -12,7 +12,7 @@ def test_ledger():
 
 
 def test_sync():
-    assert requests.post(base + "/sync", json={"device": "local", "changes": []}).status_code == 200
+    assert requests.post(base + "/sync", json=[]).status_code == 200
 
 
 print("✅ All backend endpoints validated.")

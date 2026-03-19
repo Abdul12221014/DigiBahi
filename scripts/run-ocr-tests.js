@@ -14,6 +14,29 @@
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { writeFileSync } from 'fs';
+import { JSDOM } from 'jsdom';
+import { Worker } from 'worker_threads';
+import 'fake-indexeddb/auto';
+
+// Initialize DOM environment for testing
+const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', { url: "http://localhost/" });
+global.window = dom.window;
+global.document = dom.window.document;
+global.OffscreenCanvas = class OffscreenCanvas {
+  constructor(width, height) {
+    const canvas = global.document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+};
+global.Worker = Worker; // Polyfill Web Worker for Node
+
+// Polyfill Vite's import.meta.env by passing a global var that we can use, 
+// but since the code uses `import.meta.env`, we must patch Node's module loader 
+// OR just rely on TSX parsing it. Actually, easiest is mapping process.env to it via esbuild if tsx doesn't.
+// Let's ensure process.env has the variables.
+process.env.VITE_OCR_SERVICE_URL = process.env.VITE_OCR_SERVICE_URL || 'http://localhost:9000';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,6 +57,10 @@ async function runOCRTests() {
 
   try {
     // Import the test suite
+    const { getOCRHybridService } = await import('../src/features/pen-input/services/ocrHybrid.service.ts');
+    const service = getOCRHybridService();
+    service.warmup = async () => { console.log("🔥 Skipped local worker warmup in Node environment."); };
+    
     const testModule = await import('../src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts');
     const runAllOCRTests = testModule.default;
 

@@ -41,6 +41,21 @@ def broadcast_event(event_data: dict):
             print(f"Broadcast error (non-critical): {e}")
     
     threading.Thread(target=run_broadcast, daemon=True).start()
+    
+@router.get("/ledger/entries")
+def get_ledger_entries_alias(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    search: str = Query("", description="Search description, party_name, reference_no, tags"),
+    type: Optional[str] = Query(None, description="Filter by type"),
+    from_: str = Query("", alias="from", description="Date from (YYYY-MM-DD)"),
+    to: str = Query("", description="Date to (YYYY-MM-DD)"),
+    tags: str = Query("", description="Filter by tags (comma-separated)"),
+    include_total: bool = Query(False, description="Include total count in response"),
+    db: Session = Depends(get_db)
+):
+    """Alias for GET /ledger for compatibility"""
+    return get_ledger(skip, limit, search, type, from_, to, tags, include_total, db)
 
 
 @router.get("/ledger")

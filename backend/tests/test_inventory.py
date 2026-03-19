@@ -42,7 +42,7 @@ def test_create_item_duplicate_sku(client, db):
     # Try to create duplicate
     response2 = client.post("/api/v1/inventory/items", json=item_data)
     assert response2.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Duplicate SKU" in response2.json()["detail"]
+    assert response2.json()["detail"]["error"] == "DUPLICATE_SKU"
 
 
 def test_get_items_pagination(client, db):

@@ -25,7 +25,11 @@ CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "config/vision-ke
 if not os.path.isabs(CREDENTIALS_PATH):
     CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), CREDENTIALS_PATH)
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+ALLOWED_ORIGINS = [
+    "http://localhost:4173",
+    "http://localhost:5173",
+    "https://4173-if22bbif41wscvpku6ofa-46a362c4.sg1.manus.computer",
+]
 
 # Ensure Google Cloud Vision credentials are set
 if os.path.exists(CREDENTIALS_PATH):
@@ -41,6 +45,16 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Google Cloud Vision client: {e}")
     VISION_ENABLED = False
+
+# Check if Tesseract is installed
+try:
+    tesseract_version = pytesseract.get_tesseract_version()
+    logger.info(f"Tesseract OCR localized. Version: {tesseract_version}")
+except pytesseract.TesseractNotFoundError:
+    logger.error("❌ Tesseract OCR binary not found! Please install tesseract-ocr system package.")
+    # We don't exit here to allow health check to report the failure
+except Exception as e:
+    logger.error(f"Error checking Tesseract version: {e}")
 
 
 app = FastAPI(title="DigBahi Tesseract OCR Service")

@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-03-19T15:00:54.623Z",
+  "status": "FAILED",
+  "error": "Worker is not defined",
+  "stack": "ReferenceError: Worker is not defined\n    at OCRHybridService.ensureWorker (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:220:23)\n    at OCRHybridService.sendMessage (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:264:31)\n    at OCRHybridService.warmup (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:291:16)\n    at runOCRAccuracyTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:261:23)\n    at runAllOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:512:33)\n    at runOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/scripts/run-ocr-tests.js:62:27)"
+}

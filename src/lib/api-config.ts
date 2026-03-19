@@ -13,7 +13,7 @@
  */
 export function getApiBaseUrl(): string {
   // Check if VITE_API_URL is explicitly set
-  const envUrl = import.meta.env.VITE_API_URL;
+  const envUrl = import.meta.env?.VITE_API_URL;
   if (envUrl) {
     return envUrl;
   }

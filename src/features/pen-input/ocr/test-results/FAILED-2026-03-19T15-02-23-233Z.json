@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-03-19T15:02:23.233Z",
+  "status": "FAILED",
+  "error": "Cannot read properties of undefined (reading 'VITE_API_URL')",
+  "stack": "TypeError: Cannot read properties of undefined (reading 'VITE_API_URL')\n    at getApiBaseUrl (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/lib/api-config.ts:16:34)\n    at OCRHybridService.recognizeWithBackend (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:319:20)\n    at OCRHybridService.recognizeCanvas (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:304:17)\n    at testAdaptiveLearning (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:411:46)\n    at async runAllOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:513:27)\n    at async runOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/scripts/run-ocr-tests.js:67:21)"
+}

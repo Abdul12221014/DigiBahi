@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-03-19T15:03:16.924Z",
+  "status": "FAILED",
+  "error": "fetch failed",
+  "stack": "TypeError: fetch failed\n    at node:internal/deps/undici/undici:15422:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async OCRHybridService.recognizeWithBackend (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:358:24)\n    at async testAdaptiveLearning (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:411:26)\n    at async runAllOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/ocr/__tests__/ocr-accuracy-test.ts:513:27)\n    at async runOCRTests (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/scripts/run-ocr-tests.js:68:21)"
+}

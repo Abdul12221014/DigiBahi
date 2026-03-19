@@ -208,7 +208,7 @@ export default class OCRHybridService {
     reject: (error: Error) => void;
   }>();
 
-  private remoteEndpoint = import.meta.env.VITE_REMOTE_OCR_URL || import.meta.env.VITE_OCR_SERVICE_URL as string | undefined;
+  private remoteEndpoint = import.meta.env?.VITE_REMOTE_OCR_URL || import.meta.env?.VITE_OCR_SERVICE_URL as string | undefined;
 
   /**
    * Lazy load worker
@@ -315,7 +315,7 @@ export default class OCRHybridService {
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
     // Get OCR service URL from environment or fallback to same host on port 9000
-    const ocrBase = import.meta.env.VITE_OCR_SERVICE_URL || 
+    const ocrBase = import.meta.env?.VITE_OCR_SERVICE_URL || 
                    getApiBaseUrl().replace(':8000', ':9000');
     
     // Call the new Google Cloud Vision endpoint
@@ -348,8 +348,17 @@ export default class OCRHybridService {
       }
     }
 
-    // Convert canvas to base64
-    const dataUrl = targetCanvas.toDataURL('image/png');
+    // Convert canvas to base64 with a white background to prevent transparent pixel corruption!
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = targetCanvas.width;
+    finalCanvas.height = targetCanvas.height;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (finalCtx) {
+      finalCtx.fillStyle = '#ffffff';
+      finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+      finalCtx.drawImage(targetCanvas, 0, 0);
+    }
+    const dataUrl = (finalCtx ? finalCanvas : targetCanvas).toDataURL('image/png');
     const base64 = dataUrl.split(',')[1];
 
     try {

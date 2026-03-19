@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-03-19T15:02:57.704Z",
+  "status": "FAILED",
+  "error": "Failed to parse URL from http://:9000/recognize-cloud",
+  "stack": "TypeError: Failed to parse URL from http://:9000/recognize-cloud\n    at node:internal/deps/undici/undici:15422:13\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at process.processImmediate (node:internal/timers:473:9)\n    at async OCRHybridService.recognizeWithBackend (/Users/abdulkadir/DIGBAHI_ACCOUNTING/digi-bahi-ink/src/features/pen-input/services/ocrHybrid.service.ts:358:24)"
+}
