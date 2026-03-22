@@ -12,6 +12,7 @@ from .api.v1.upi import router as upi_router
 from .api.v1.upi_sync import router as upi_sync_router
 from .api.v1.inventory import router as inventory_router  # NEW: Inventory API
 from .api.v1.whatsapp import router as whatsapp_router
+from .api.v1.ocr import router as ocr_router
 from .ai.analytics.routes import router as analytics_router
 
 # Optional: Federated learning (requires numpy)
@@ -56,6 +57,7 @@ app.include_router(whatsapp_router)  # WhatsApp Business API
 from .api.v1.printer import router as printer_router
 app.include_router(printer_router)
 app.include_router(analytics_router)
+app.include_router(ocr_router)
 if FEDERATED_AVAILABLE and federated_router:
     app.include_router(federated_router)
 

@@ -314,9 +314,8 @@ export default class OCRHybridService {
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    // Get OCR service URL from environment or fallback to same host on port 9000
-    const ocrBase = import.meta.env?.VITE_OCR_SERVICE_URL || 
-                   getApiBaseUrl().replace(':8000', ':9000');
+    // Use standard Backend API Base URL now that OCR is merged into the central backend app
+    const ocrBase = import.meta.env?.VITE_OCR_SERVICE_URL || getApiBaseUrl();
     
     // Call the new Google Cloud Vision endpoint
     const ocrEndpoint = `${ocrBase}/recognize-cloud`;
