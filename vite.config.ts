@@ -33,11 +33,4 @@ export default defineConfig(({ mode }) => ({
     },
   },
   assetsInclude: ["**/*.md"],
-  // Environment variables (can be overridden by .env file)
-  define: {
-    'import.meta.env.VITE_OCR_SERVICE_URL': JSON.stringify(
-      process.env.VITE_OCR_SERVICE_URL || 'http://localhost:9000'
-    )
-,
-  },
 }));

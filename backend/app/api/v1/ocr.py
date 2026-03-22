@@ -13,14 +13,28 @@ logger = logging.getLogger("ocr-api")
 
 router = APIRouter()
 
+import json
+
 # Try to find credentials relative to project root or use env var
+CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
 CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "config/vision-key.json")
 
-if os.path.exists(CREDENTIALS_PATH):
+if CREDENTIALS_JSON:
+    try:
+        # Create a temporary credentials file from the JSON string
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tf:
+            tf.write(CREDENTIALS_JSON)
+            temp_creds_path = tf.name
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_creds_path
+        logger.info(f"Using Google Vision credentials from environment variable")
+    except Exception as e:
+        logger.error(f"Failed to create temporary credentials file from environment: {e}")
+elif os.path.exists(CREDENTIALS_PATH):
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = CREDENTIALS_PATH
     logger.info(f"Using Google Vision credentials at {CREDENTIALS_PATH}")
 else:
-    logger.warning(f"Google Vision credentials not found at {CREDENTIALS_PATH}")
+    logger.warning(f"Google Vision credentials not found at {CREDENTIALS_PATH} or GOOGLE_CREDENTIALS_JSON environment variable")
 
 try:
     vision_client = vision.ImageAnnotatorClient()
