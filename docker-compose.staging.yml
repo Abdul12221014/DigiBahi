@@ -23,6 +23,20 @@ services:
       timeout: 10s
       retries: 3
 
+  # Tesseract OCR API
+  digbahi-ocr:
+    build:
+      context: ./backend/services/tesseract_ocr
+      dockerfile: Dockerfile
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Frontend (Development)
   digbahi-frontend:
     build:

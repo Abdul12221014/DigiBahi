@@ -26,11 +26,13 @@ except ImportError as e:
 app = FastAPI(title="DigBahi Local API")
 
 # Add CORS middleware - Allow specific origins for security and LAN access
-origins = [
-    "http://localhost:4173",
-    "http://localhost:5173",
-    "https://4173-if22bbif41wscvpku6ofa-46a362c4.sg1.manus.computer",
-]
+import os
+
+cors_env = os.getenv("CORS_ORIGINS")
+if cors_env:
+    origins = [o.strip() for o in cors_env.split(",")]
+else:
+    origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,

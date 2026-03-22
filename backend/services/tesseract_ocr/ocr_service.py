@@ -25,11 +25,11 @@ CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "config/vision-ke
 if not os.path.isabs(CREDENTIALS_PATH):
     CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), CREDENTIALS_PATH)
 
-ALLOWED_ORIGINS = [
-    "http://localhost:4173",
-    "http://localhost:5173",
-    "https://4173-if22bbif41wscvpku6ofa-46a362c4.sg1.manus.computer",
-]
+cors_env = os.getenv("CORS_ORIGINS")
+if cors_env:
+    ALLOWED_ORIGINS = [o.strip() for o in cors_env.split(",")]
+else:
+    ALLOWED_ORIGINS = ["*"]
 
 # Ensure Google Cloud Vision credentials are set
 if os.path.exists(CREDENTIALS_PATH):
