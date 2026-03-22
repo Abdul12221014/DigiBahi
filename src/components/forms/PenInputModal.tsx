@@ -266,7 +266,7 @@ export function PenInputModal({ open, onClose, onRecognized, targetField, onReco
     }
     try {
       (e.currentTarget as any).setPointerCapture?.(e.pointerId);
-    } catch {}
+    } catch { /* setPointerCapture not supported — safe to ignore */ }
 
     setIsDrawing(true);
     pendingStartRef.current = { x, y };

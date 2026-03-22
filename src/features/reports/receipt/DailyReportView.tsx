@@ -69,7 +69,7 @@ export function DailyReportView() {
                     .textLine('DAILY REPORT')
                     .bold(false)
                     .textLine(formatDate(new Date()))
-                    .textLine('DigBahi App')
+                    .textLine('DigitalMuneem App')
                     .feed(1)
                     .separator()
                     .align('left')
@@ -141,7 +141,7 @@ export function DailyReportView() {
             <div className="text-center mb-4 border-b border-black pb-2 border-dashed">
                 <h1 className="text-base font-bold uppercase tracking-wider">DAILY REPORT</h1>
                 <p className="text-[10px]">{formatDate(new Date())}</p>
-                <p className="text-[10px] mt-1">DigBahi App</p>
+                <p className="text-[10px] mt-1">DigitalMuneem App</p>
             </div>
 
             {/* Summary Section */}

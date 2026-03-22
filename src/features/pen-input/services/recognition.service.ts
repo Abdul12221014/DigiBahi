@@ -46,7 +46,7 @@ const ACCOUNTING_WORDS = [
 // Pattern matching for better recognition
 const PATTERNS = {
   AMOUNT: /₹?\s*\d+([.,]\d{2})?/g,
-  DATE: /\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/g,
+  DATE: /\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/g,
   PHONE: /(\+91\s?)?[6-9]\d{9}/g,
   EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
   GST: /\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}/g
@@ -125,7 +125,7 @@ export class EnhancedRecognitionService {
   private static analyzeImage(imageData: ImageData): any {
     const { data, width, height } = imageData;
     let strokePixels = 0;
-    let totalPixels = width * height;
+    const totalPixels = width * height;
     
     // Count non-transparent pixels (potential strokes)
     for (let i = 3; i < data.length; i += 4) {

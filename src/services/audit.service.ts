@@ -11,13 +11,13 @@ export const auditService = {
       const res = await fetch(getApiUrl('/audit'));
       if (!res.ok) throw new Error('HTTP error');
       const rows: AuditRow[] = await res.json();
-      try { localStorage.setItem(AUDIT_CACHE_KEY, JSON.stringify(rows)); } catch {}
+      try { localStorage.setItem(AUDIT_CACHE_KEY, JSON.stringify(rows)); } catch { /* storage full or unavailable */ }
       return rows;
     } catch {
       try {
         const cached = localStorage.getItem(AUDIT_CACHE_KEY);
         if (cached) return JSON.parse(cached);
-      } catch {}
+      } catch { /* invalid JSON in cache — return empty */ }
       return [];
     }
   },

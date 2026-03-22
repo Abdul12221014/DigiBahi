@@ -234,7 +234,7 @@ export class ShapeDetectionService {
     if (points.length < 3) return 0;
     
     let changes = 0;
-    let lastDirection = 0;
+    const _lastDirection = 0; // direction tracking (unused but reserved)
     
     for (let i = 1; i < points.length - 1; i++) {
       const prev = points[i - 1];

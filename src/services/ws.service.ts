@@ -7,7 +7,7 @@ export function connectWS() {
   try {
     socket = new WebSocket(getWebSocketUrl());
     socket.onmessage = (ev) => {
-      try { const data = JSON.parse(ev.data); listeners.forEach(l => l(data)); } catch {}
+      try { const data = JSON.parse(ev.data); listeners.forEach(l => l(data)); } catch { /* invalid JSON — skip */ }
     };
     socket.onclose = () => { socket = null; setTimeout(connectWS, 3000); };
   } catch {

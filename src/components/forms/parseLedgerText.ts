@@ -132,7 +132,7 @@ function generateDescription(
   
   // Remove extracted date
   if (extractedFields.date) {
-    description = description.replace(/\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/g, '').trim();
+    description = description.replace(/\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/g, '').trim();
   }
   
   // Remove party name patterns

@@ -54,7 +54,7 @@ export function ReceiptView() {
           .reset()
           .align('center')
           .bold(true)
-          .textLine('DigBahi')
+          .textLine('DigitalMuneem')
           .bold(false)
           .textLine('Professional Accounting')
           .textLine('Ph: +91 98765 43210')
@@ -78,7 +78,7 @@ export function ReceiptView() {
           .feed(2)
           .align('center')
           .textLine('Thank you for your business!')
-          .textLine('Powered by DigBahi')
+          .textLine('Powered by DigitalMuneem')
           .feed(3)
           .cut();
 
@@ -127,7 +127,7 @@ export function ReceiptView() {
 
       {/* Header */}
       <div className="text-center mb-4 border-b border-black pb-2 border-dashed">
-        <h1 className="text-base font-bold uppercase tracking-wider">DigBahi</h1>
+        <h1 className="text-base font-bold uppercase tracking-wider">DigitalMuneem</h1>
         <p className="text-[10px]">Professional Accounting</p>
         <p className="text-[10px] mt-1">Ph: +91 98765 43210</p>
       </div>
@@ -176,7 +176,7 @@ export function ReceiptView() {
       {/* Footer */}
       <div className="text-center text-[10px] space-y-1 mt-6">
         <p>Thank you for your business!</p>
-        <p className="text-[8px] text-gray-500">Powered by DigBahi</p>
+        <p className="text-[8px] text-gray-500">Powered by DigitalMuneem</p>
       </div>
 
       <div className="no-print mt-4 text-center">

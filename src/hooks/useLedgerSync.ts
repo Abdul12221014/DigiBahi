@@ -34,23 +34,26 @@ export function useLedgerSync(callbacks: UseLedgerSyncCallbacks) {
 
       try {
         switch (msg.type) {
-          case 'ledger_entry_created':
+          case 'ledger_entry_created': {
             const createdEntry = msg.data;
             currentCallbacks.onEntryCreated?.(createdEntry);
             toast.success(`New entry: ${createdEntry.description || 'Untitled'}`);
             break;
+          }
 
-          case 'ledger_entry_updated':
+          case 'ledger_entry_updated': {
             const updatedEntry = msg.data;
             currentCallbacks.onEntryUpdated?.(updatedEntry);
             toast.info(`Entry updated: ${updatedEntry.description || 'Unknown'}`);
             break;
+          }
 
-          case 'ledger_entry_deleted':
+          case 'ledger_entry_deleted': {
             const deletedId = msg.data?.id;
             currentCallbacks.onEntryDeleted?.(deletedId);
             toast.warning(`Entry deleted`);
             break;
+          }
 
           default:
             // Ignore unknown event types

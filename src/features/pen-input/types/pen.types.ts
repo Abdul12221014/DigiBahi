@@ -103,7 +103,7 @@ export interface PointerEvent {
 // Recognition patterns
 export const RECOGNITION_PATTERNS = {
   DATE: [
-    /\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/g,
+    /\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/g,
     /\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2,4}/gi,
     /\d{1,2}\s+\d{1,2}\s+\d{2,4}/g
   ],

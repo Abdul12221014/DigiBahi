@@ -39,7 +39,7 @@ export function Auth({ onLogin }: AuthProps) {
     <div className="min-h-screen flex items-center justify-center p-4 gradient-hero">
       <Card className="w-full max-w-md p-8 shadow-strong">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary mb-2">DigBahi</h1>
+          <h1 className="text-4xl font-bold text-primary mb-2">DigitalMuneem</h1>
           <p className="text-muted-foreground">Professional Accounting for Indian SMEs</p>
         </div>
 

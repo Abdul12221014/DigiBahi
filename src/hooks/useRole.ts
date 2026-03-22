@@ -3,7 +3,7 @@ export function getUserRole(): string {
   try {
     const cached = localStorage.getItem('digbahi_role');
     if (cached) return cached;
-  } catch {}
+  } catch { /* localStorage may be unavailable in some environments — safe to ignore */ }
   return 'admin'; // default during development; replace with real decode
 }
 

@@ -375,16 +375,16 @@ const Index = () => {
               <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
                 <img
                   src="/digbahi-logo.png"
-                  alt="DigBahi Logo"
+                  alt="DigitalMuneem Logo"
                   className="w-full h-full object-contain"
                 />
               </div>
               <span className="text-lg font-bold bg-gradient-to-r from-[hsl(145_70%_32%)] to-[hsl(40_98%_48%)] bg-clip-text text-transparent">
-                DigBahi
+                DigitalMuneem
               </span>
             </div>
             <div className="text-sm text-muted-foreground space-y-1">
-              <p className="font-medium">DigBahi Accounting Solutions © 2025</p>
+              <p className="font-medium">DigitalMuneem Accounting Solutions © 2025</p>
               <p>Professional accounting software for Indian SMEs</p>
             </div>
           </div>

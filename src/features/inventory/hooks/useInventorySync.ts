@@ -32,29 +32,33 @@ export function useInventorySync(callbacks: UseInventorySyncCallbacks) {
 
       try {
         switch (msg.type) {
-          case 'inventory_item_created':
+          case 'inventory_item_created': {
             const createdItem = msg.data;
             currentCallbacks.onItemCreated?.(createdItem);
             toast.success(`New item: ${createdItem.name || 'Untitled'}`);
             break;
+          }
 
-          case 'inventory_item_updated':
+          case 'inventory_item_updated': {
             const updatedItem = msg.data;
             currentCallbacks.onItemUpdated?.(updatedItem);
             toast.info(`Item updated: ${updatedItem.name || 'Unknown'}`);
             break;
+          }
 
-          case 'inventory_item_deleted':
+          case 'inventory_item_deleted': {
             const deletedId = msg.data?.id;
             currentCallbacks.onItemDeleted?.(deletedId);
             toast.warning(`Item deleted`);
             break;
+          }
 
-          case 'inventory_stock_changed':
+          case 'inventory_stock_changed': {
             const stockData = msg.data;
             currentCallbacks.onStockChanged?.(stockData);
             toast.info(`Stock changed for: ${stockData.item_name || 'Unknown'}`);
             break;
+          }
 
           default:
             // Ignore unknown event types

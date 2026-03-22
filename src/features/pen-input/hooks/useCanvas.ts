@@ -479,7 +479,6 @@ export function useCanvas() {
           }
         } else {
           // Other tools: Keep original curve drawing
-          let lastWidth = null;
           for (let i = 1; i < pointsToDraw.length; i++) {
             const p0 = i === 1 && lastDrawnIndex > 0
               ? stroke.points[lastDrawnIndex - 1]

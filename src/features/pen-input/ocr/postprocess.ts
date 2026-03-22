@@ -45,8 +45,8 @@ export function parseCurrency(text: string): { amount: number | null; raw: strin
   const normalized = normalizeNumbers(text);
   
   // Remove currency symbols and common prefixes
-  let cleaned = normalized
-    .replace(/[₹Rs\.]/gi, '')
+  const cleaned = normalized
+    .replace(/[\u20b9Rs.]/gi, '')
     .replace(/INR/gi, '')
     .trim();
   

@@ -1,9 +1,9 @@
 // Application constants
 export const APP_CONFIG = {
-  name: 'DigBahi',
+  name: 'DigitalMuneem',
   version: '1.0.0',
   description: 'Professional Accounting for Indian SMEs',
-  author: 'DigBahi Accounting Solutions',
+  author: 'DigitalMuneem Accounting Solutions',
   themeColor: '#2d7a4a',
 } as const;
 

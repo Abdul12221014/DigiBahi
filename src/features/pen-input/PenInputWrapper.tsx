@@ -11,7 +11,7 @@ import { NotebookProvider } from './context/NotebookContext';
 import NotebookNav from './components/NotebookNav';
 const PenCanvas = lazy(() => import('./PenCanvas'));
 
-interface PenInputWrapperProps extends PenCanvasProps {}
+type PenInputWrapperProps = PenCanvasProps;
 
 export default function PenInputWrapper({ onRecognized, onClose }: PenInputWrapperProps) {
   return (
