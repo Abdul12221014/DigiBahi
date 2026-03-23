@@ -227,6 +227,10 @@ export interface TemplateOptions {
   showDate?: boolean;
   showHeader?: boolean;
   lineHeight?: number;
+  lineSpacing?: number;
+  margin?: number;
+  columnCount?: number;
+  color?: string;
 }
 export const defaultTemplateId: TemplateId = 'traditional-khata';
 

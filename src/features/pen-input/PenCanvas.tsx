@@ -20,6 +20,10 @@ const loadRecognition = async () => {
   return mod;
 };
 import type { OCRCorrection } from '@/lib/localStore';
+import type { ShapeDetection } from './types/shape.types';
+import type { PenCanvasProps } from './types/pen.types';
+import type { PostProcessResult } from './ocr/postprocess';
+import type { TemplateId } from './templates';
 import ToolPalette from './components/ToolPalette';
 import LassoOverlay from './components/LassoOverlay';
 import TextCorrectionOverlay from './components/TextCorrectionOverlay';
@@ -32,7 +36,6 @@ import { detectShape } from './services/shapeSnapper';
 import { usePenTool, PenToolProvider } from './context/PenToolContext';
 import { useNotebook } from './context/NotebookContext';
 import NotebookNav from './components/NotebookNav';
-import type { PenCanvasProps } from './types';
 import { drawTemplate } from './templates';
 
 interface RecognitionResult {
@@ -61,6 +64,8 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     undo,
     redo,
     getContentBoundingBox, // NEW: For OCR optimization
+    handlePan,
+    handleZoom,
   } = useCanvas();
 
   const { mode, tool, color, width, opacity } = usePenTool();
@@ -71,7 +76,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     updateCurrentPage,
     savePage
   } = useNotebook();
-  const [pendingShape, setPendingShape] = useState<unknown>(null);
+  const [pendingShape, setPendingShape] = useState<ShapeDetection | null>(null);
   const [recognitionResults, setRecognitionResults] = useState<RecognitionResult[]>([]);
   const [recognizing, setRecognizing] = useState(false);
   const [selectedResult, setSelectedResult] = useState<RecognitionResult | null>(null);
@@ -88,7 +93,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     text: string;
     confidence: number;
     imageHash: string;
-    processedFields?: Record<string, unknown>;
+    processedFields?: PostProcessResult;
   } | null>(null);
 
   // Helper function to generate image hash for telemetry
@@ -136,7 +141,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     const height = bgCanvas.height;
 
     try {
-      drawTemplate(ctx, width, height, templateId, {
+      drawTemplate(ctx, templateId as TemplateId, width, height, {
         lineSpacing: 30,
         margin: 40,
         columnCount: 4,
@@ -202,7 +207,28 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     beginStroke,
     extendStroke,
     endStroke,
+    onPan: handlePan,
+    onZoom: handleZoom,
   });
+
+  // CRITICAL: Attach native touchmove listener with {passive: false} to block scrolling
+  // React synthetic events cannot reliably preventDefault() on touch events because
+  // browsers (especially iOS Safari) mark touch listeners as passive by default.
+  // Only a native listener with explicit {passive: false} can truly block scrolling.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const preventScroll = (e: TouchEvent) => {
+      // Always prevent scroll on the canvas container during touch
+      e.preventDefault();
+    };
+
+    container.addEventListener('touchmove', preventScroll, { passive: false });
+    return () => {
+      container.removeEventListener('touchmove', preventScroll);
+    };
+  }, [containerRef]);
 
   // Enhanced pointer up handler
   const onUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -562,8 +588,8 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
         {/* Canvas Container */}
         <div
           ref={containerRef}
-          className="relative overflow-y-auto overflow-x-hidden rounded-xl border-2 border-border shadow-lg bg-white virtual-scroll-container"
-          style={{ height: '500px' }}
+          className="relative overflow-hidden rounded-xl border-2 border-border shadow-lg bg-white virtual-scroll-container"
+          style={{ height: '500px', touchAction: 'none', overscrollBehavior: 'none' }}
         >
           {/* Drawing hint */}
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center select-none" style={{ opacity: 0.1 }}>
@@ -578,7 +604,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
             ref={backgroundCanvasRef}
             className="absolute top-0 left-0"
             style={{
-              transform: `scale(${config.zoom}) translate(${config.pan.x}px, ${config.pan.y}px)`,
+              transform: `translate(${config.pan.x}px, ${config.pan.y}px) scale(${config.zoom})`,
               transformOrigin: '0 0',
             }}
           />
@@ -606,9 +632,9 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
             ref={canvasRef}
             className="absolute top-0 left-0 cursor-crosshair"
             style={{
-              transform: `scale(${config.zoom}) translate(${config.pan.x}px, ${config.pan.y}px)`,
+              transform: `translate(${config.pan.x}px, ${config.pan.y}px) scale(${config.zoom})`,
               transformOrigin: '0 0',
-              touchAction: 'pan-y pinch-zoom', // Allow two-finger scrolling while keeping single-touch drawing
+              touchAction: 'none', // Lock touch interactions for drawing only (prevents accidental scrolling)
               userSelect: 'none',
               WebkitUserSelect: 'none',
               WebkitTouchCallout: 'none'

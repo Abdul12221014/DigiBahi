@@ -25,16 +25,19 @@ export function usePointerEvents(
     beginStroke: (p: StrokePoint) => void;
     extendStroke: (p: StrokePoint) => void;
     endStroke: () => void;
+    onPan?: (dx: number, dy: number) => void;
+    onZoom?: (scale: number, centerX: number, centerY: number) => void;
   },
   config?: PointerEventsConfig
 ): Handlers {
   const enablePalmRejection = config?.enablePalmRejection !== false;
   const debugMode = config?.debugPalmRejection || false;
 
-  // Legacy refs for backward compatibility
+  // Refs for state tracking
   const activePenRef = useRef<boolean>(false);
   const activePointerIdRef = useRef<number | null>(null);
-  const activePointersRef = useRef<Set<number>>(new Set());
+  const activePointersMapRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const isPanningRef = useRef<boolean>(false);
 
   // Enhanced palm rejection
   const palmRejection = usePalmRejection(config?.palmRejection);
@@ -50,13 +53,28 @@ export function usePointerEvents(
   }, [palmRejection]);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    // Two-finger scrolling detection: if there's already an active pointer, ignore this one
-    if (activePointersRef.current.size > 0 && activePointerIdRef.current !== e.pointerId) {
-      activePointersRef.current.add(e.pointerId);
-      if (debugMode) {
-        console.log('[PalmRejection] Multi-touch detected, ignoring pointer', e.pointerId);
+    // Explicitly prevent default browser behavior (scrolling/selection) during drawing
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      e.preventDefault();
+    }
+
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+
+    // Track this pointer
+    activePointersMapRef.current.set(e.pointerId, { x: clientX, y: clientY });
+
+    // Multi-touch detection (Pan/Scroll gesture start)
+    if (activePointersMapRef.current.size >= 2) {
+      if (debugMode) console.log('[PointerEvents] Multi-touch gesture started, stopping draw');
+      isPanningRef.current = true;
+      
+      // Stop current stroke if any
+      if (activePointerIdRef.current !== null) {
+        opts.endStroke();
+        activePointerIdRef.current = null;
       }
-      return; // Let browser handle scrolling
+      return;
     }
 
     // Enhanced palm rejection (if enabled)
@@ -86,10 +104,12 @@ export function usePointerEvents(
             console.log('[PalmRejection] Pointer accepted after delay:', acceptedEvent.pointerId);
           }
 
+          // If we started panning during the delay, don't start a stroke
+          if (isPanningRef.current) return;
+
           // Track this pointer
           activePointerIdRef.current = acceptedEvent.pointerId;
-          activePointersRef.current.add(acceptedEvent.pointerId);
-
+          
           // Capture pointer for drawing
           (acceptedEvent.target as Element).setPointerCapture(acceptedEvent.pointerId);
 
@@ -130,9 +150,8 @@ export function usePointerEvents(
     // Prefer pen
     if (e.pointerType === 'pen') activePenRef.current = true;
 
-    // Track this pointer
+    // Track this pointer for drawing
     activePointerIdRef.current = e.pointerId;
-    activePointersRef.current.add(e.pointerId);
 
     // Capture pointer for drawing
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -147,6 +166,50 @@ export function usePointerEvents(
   }, [opts, enablePalmRejection, debugMode, palmRejection]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Explicitly prevent default browser behavior (scrolling/selection)
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      e.preventDefault();
+    }
+
+    const currentPos = { x: e.clientX, y: e.clientY };
+    const prevPos = activePointersMapRef.current.get(e.pointerId);
+    activePointersMapRef.current.set(e.pointerId, currentPos);
+
+    // GESTURE HANDLING (Multi-touch Panning)
+    if (isPanningRef.current && activePointersMapRef.current.size >= 2 && opts.onPan) {
+      const pointerIds = Array.from(activePointersMapRef.current.keys());
+      const otherId = pointerIds.find(id => id !== e.pointerId);
+      const otherPos = otherId !== undefined ? activePointersMapRef.current.get(otherId) : null;
+
+      if (prevPos && otherPos) {
+        // Calculate centroid movement
+        const prevCentroidX = (prevPos.x + otherPos.x) / 2;
+        const prevCentroidY = (prevPos.y + otherPos.y) / 2;
+        const currCentroidX = (currentPos.x + otherPos.x) / 2;
+        const currCentroidY = (currentPos.y + otherPos.y) / 2;
+
+        const dx = currCentroidX - prevCentroidX;
+        const dy = currCentroidY - prevCentroidY;
+
+        if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+          opts.onPan(dx, dy);
+        }
+
+        // Optional: Implement pinch-to-zoom
+        if (opts.onZoom) {
+          const dist = Math.sqrt(Math.pow(currentPos.x - otherPos.x, 2) + Math.pow(currentPos.y - otherPos.y, 2));
+          const prevDist = Math.sqrt(Math.pow(prevPos.x - otherPos.x, 2) + Math.pow(prevPos.y - otherPos.y, 2));
+          
+          if (prevDist > 0 && Math.abs(dist - prevDist) > 1) {
+            const scale = dist / prevDist;
+            opts.onZoom(scale, currCentroidX, currCentroidY);
+          }
+        }
+      }
+      return;
+    }
+
+    // Only proceed with drawing if this is the active drawing pointer
     if (activePointerIdRef.current !== e.pointerId) return;
 
     const { x, y, pressure } = opts.getPosition(e);
@@ -162,10 +225,9 @@ export function usePointerEvents(
         // Cancel this stroke
         opts.endStroke();
         activePointerIdRef.current = null;
-        activePointersRef.current.delete(e.pointerId);
         palmRejection.unregisterPointer(e.pointerId);
 
-        // Fire pointercancel to clean up
+        // Release pointer capture
         (e.target as Element).releasePointerCapture(e.pointerId);
         return;
       }
@@ -180,8 +242,13 @@ export function usePointerEvents(
   }, [opts, enablePalmRejection, debugMode, palmRejection]);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    // Remove from active pointers set
-    activePointersRef.current.delete(e.pointerId);
+    // Remove from active pointers map
+    activePointersMapRef.current.delete(e.pointerId);
+
+    // Reset panning if we drop below 2 pointers
+    if (activePointersMapRef.current.size < 2) {
+      isPanningRef.current = false;
+    }
 
     // Clean up delayed stroke data
     delayedStrokesRef.current.delete(e.pointerId);
@@ -200,9 +267,10 @@ export function usePointerEvents(
     }
 
     // If no more active pointers, reset state
-    if (activePointersRef.current.size === 0) {
+    if (activePointersMapRef.current.size === 0) {
       activePointerIdRef.current = null;
       activePenRef.current = false;
+      isPanningRef.current = false;
     }
   }, [opts, enablePalmRejection, palmRejection]);
 
@@ -210,5 +278,3 @@ export function usePointerEvents(
 }
 
 export default usePointerEvents;
-
-

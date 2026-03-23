@@ -626,6 +626,37 @@ export function useCanvas() {
     return { x, y, width, height };
   }, [strokes]);
 
+  // Handle manual panning (iPad gestures)
+  const handlePan = useCallback((dx: number, dy: number) => {
+    setConfig(prev => ({
+      ...prev,
+      pan: {
+        x: prev.pan.x + dx,
+        y: prev.pan.y + dy
+      }
+    }));
+  }, []);
+
+  // Handle manual zooming (iPad gestures)
+  const handleZoom = useCallback((scale: number, centerX: number, centerY: number) => {
+    setConfig(prev => {
+      const newZoom = Math.max(0.1, Math.min(5, prev.zoom * scale));
+      if (newZoom === prev.zoom) return prev;
+
+      const zoomRatio = newZoom / prev.zoom;
+      const newPan = {
+        x: centerX - (centerX - prev.pan.x) * zoomRatio,
+        y: centerY - (centerY - prev.pan.y) * zoomRatio
+      };
+
+      return {
+        ...prev,
+        zoom: newZoom,
+        pan: newPan
+      };
+    });
+  }, []);
+
   useEffect(() => { redrawAll(); }, [strokes, redrawAll]);
 
   return {
@@ -642,7 +673,9 @@ export function useCanvas() {
     undo,
     redo,
     resizeToContainer,
-    getContentBoundingBox, // NEW: For OCR optimization
+    getContentBoundingBox,
+    handlePan,
+    handleZoom,
   };
 }
 
