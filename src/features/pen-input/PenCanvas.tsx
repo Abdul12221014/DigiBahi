@@ -588,7 +588,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
         {/* Canvas Container */}
         <div
           ref={containerRef}
-          className="relative overflow-hidden rounded-xl border-2 border-border shadow-lg bg-white virtual-scroll-container"
+          className="relative overflow-y-auto overflow-x-hidden rounded-xl border-2 border-border shadow-lg bg-white virtual-scroll-container"
           style={{ height: '500px', touchAction: 'none', overscrollBehavior: 'none' }}
         >
           {/* Drawing hint */}
