@@ -8,48 +8,88 @@ export class UsbPrinterService {
     private interfaceNumber: number = 0;
     private endpointOut: number = 1;
 
+    /**
+     * Request and connect to a USB printer.
+     * Shows the browser's USB device picker (requires user gesture).
+     */
     async connect(): Promise<boolean> {
         try {
-            // 1. Request Device
             // Filters for common printer classes (0x07 = Printer)
-            // Or specific device filters if known.
             this.device = await navigator.usb.requestDevice({
                 filters: [{ classCode: 7 }]
             });
+            return await this._openDevice(this.device);
+        } catch (error) {
+            console.error('USB Printer Connection Failed:', error);
+            return false;
+        }
+    }
 
-            // 2. Open Device
-            await this.device.open();
+    /**
+     * Silently reconnect to a previously paired USB printer.
+     * Uses getDevices() — no user dialog. Safe to call on page load.
+     * Returns true if reconnected, false if no paired device found.
+     */
+    async reconnect(): Promise<boolean> {
+        try {
+            if (!navigator.usb) return false;
+            const devices = await navigator.usb.getDevices();
 
-            // 3. Select Configuration
-            if (this.device.configuration === null) {
-                await this.device.selectConfiguration(1);
+            // Prefer printer-class devices (interfaceClass 7), fallback to first paired device
+            const printerDevice = devices.find(d =>
+                d.configurations.some(cfg =>
+                    cfg.interfaces.some(iface =>
+                        iface.alternates.some(alt => alt.interfaceClass === 7)
+                    )
+                )
+            ) ?? devices[0];
+
+            if (!printerDevice) return false;
+            this.device = printerDevice;
+            return await this._openDevice(this.device);
+        } catch (error) {
+            console.error('USB Printer Reconnect Failed:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Internal: open device, select config, claim interface, find bulk OUT endpoint.
+     */
+    private async _openDevice(device: USBDevice): Promise<boolean> {
+        try {
+            if (!device.opened) {
+                await device.open();
             }
 
-            // 4. Claim Interface
-            // Usually interface 0 for simple USB printers
-            // We might need to iterate interfaces to find the bulk OUT endpoint
-            const interfaces = this.device?.configuration?.interfaces || [];
+            if (device.configuration === null) {
+                await device.selectConfiguration(1);
+            }
+
+            // Find interface with a bulk OUT endpoint
+            const interfaces = device.configuration?.interfaces || [];
             const printerInterface = interfaces.find(i =>
                 i.alternates[0].endpoints.some(e => e.direction === 'out' && e.type === 'bulk')
             );
 
             if (!printerInterface) {
-                throw new Error('No compatible bulk OUT interface found.');
+                throw new Error('No compatible bulk OUT interface found on this USB device.');
             }
 
             this.interfaceNumber = printerInterface.interfaceNumber;
 
-            // Find the endpoint number
-            const endpoint = printerInterface.alternates[0].endpoints.find(e => e.direction === 'out' && e.type === 'bulk');
+            const endpoint = printerInterface.alternates[0].endpoints.find(
+                e => e.direction === 'out' && e.type === 'bulk'
+            );
             if (endpoint) {
                 this.endpointOut = endpoint.endpointNumber;
             }
 
-            await this.device.claimInterface(this.interfaceNumber);
-
+            await device.claimInterface(this.interfaceNumber);
             return true;
         } catch (error) {
-            console.error('USB Printer Connection Failed:', error);
+            console.error('USB Device Open Failed:', error);
+            this.device = null;
             return false;
         }
     }
@@ -59,7 +99,6 @@ export class UsbPrinterService {
             console.error('Printer not connected');
             return false;
         }
-
         try {
             await this.device.transferOut(this.endpointOut, data as unknown as BufferSource);
             return true;
@@ -72,9 +111,10 @@ export class UsbPrinterService {
     async disconnect() {
         if (this.device) {
             try {
+                await this.device.releaseInterface(this.interfaceNumber);
                 await this.device.close();
             } catch (e) {
-                console.warn('Error closing device:', e);
+                console.warn('Error closing USB device:', e);
             }
             this.device = null;
         }

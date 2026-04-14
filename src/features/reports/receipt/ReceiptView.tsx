@@ -3,15 +3,11 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { db } from '@/lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { formatCurrency, formatDate } from '@/lib/gst';
-import { printerService } from '@/services/PrinterService';
-import { ESCPOS } from '@/lib/escpos';
-import { toast } from 'sonner';
 
 export function ReceiptView() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const autoPrint = searchParams.get('autoprint') === 'true';
-  const printerState = searchParams.get('printer');
 
   const entry = useLiveQuery(async () => {
     if (!id) return null;
@@ -36,67 +32,11 @@ export function ReceiptView() {
     }
   }, [entry, autoPrint]);
 
-  const handlePrint = async () => {
+  const handlePrint = () => {
     if (!entry) return;
-
-    if (printerState === 'offline') {
-      window.print();
-      return;
-    }
-
-    // Check if server printer is available
-    const status = await printerService.getStatus();
-
-    if (status.status === 'online') {
-      try {
-        const encoder = new ESCPOS();
-        encoder
-          .reset()
-          .align('center')
-          .bold(true)
-          .textLine('DigitalMuneem')
-          .bold(false)
-          .textLine('Professional Accounting')
-          .textLine('Ph: +91 98765 43210')
-          .feed(1)
-          .separator()
-          .align('left')
-          .textLine(`Date: ${formatDate(entry.date)}`)
-          .textLine(`Rcpt #: TRX-${entry.id}`)
-          .textLine(`Type: ${entry.type.toUpperCase()}`)
-          .separator()
-          .bold(true)
-          .textLine(entry.description)
-          .bold(false)
-          .textLine(`Amount: ${formatCurrency(entry.amount)}`)
-          .textLine(`GST: ${formatCurrency(entry.gstAmount)}`)
-          .separator()
-          .align('right')
-          .bold(true)
-          .textLine(`TOTAL: ${formatCurrency(entry.amount + entry.gstAmount)}`)
-          .bold(false)
-          .feed(2)
-          .align('center')
-          .textLine('Thank you for your business!')
-          .textLine('Powered by DigitalMuneem')
-          .feed(3)
-          .cut();
-
-        const success = await printerService.print(encoder.encode());
-        if (!success) throw new Error("Server print failed");
-
-        toast.success("Printed to Thermal Printer");
-      } catch (error) {
-        console.error("Print Error", error);
-        toast.error("Printer error. Falling back to system dialog.");
-        window.print(); // Fallback
-      }
-    } else {
-      // Fallback if printer is offline
-      setTimeout(() => {
-        window.print();
-      }, 500);
-    }
+    // Popup always uses browser print dialog.
+    // USB printing is handled directly from the main Reports window.
+    window.print();
   };
 
   if (!entry) return <div>Loading receipt...</div>;

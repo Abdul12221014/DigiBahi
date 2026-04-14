@@ -22,7 +22,7 @@ export function useLedgerSync(callbacks: UseLedgerSyncCallbacks) {
 
   useEffect(() => {
     // Ensure WebSocket connection is established
-    ws.connectWS();
+    ws.initWS();
     
     const handler = (msg: any) => {
       // Only process ledger events

@@ -2,16 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { db, LedgerEntry } from '@/lib/db';
 import { formatCurrency, formatDate } from '@/lib/gst';
 import { useSearchParams } from 'react-router-dom';
-import { printerService } from '@/services/PrinterService';
-import { ESCPOS } from '@/lib/escpos';
-import { toast } from 'sonner';
 
 export function DailyReportView() {
     const [entries, setEntries] = useState<LedgerEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchParams] = useSearchParams();
     const autoPrint = searchParams.get('autoprint') === 'true';
-    const printerState = searchParams.get('printer');
 
     useEffect(() => {
         loadDailyEntries();
@@ -49,67 +45,11 @@ export function DailyReportView() {
         }
     }, [loading, autoPrint]);
 
-    const handlePrint = async () => {
+    const handlePrint = () => {
         if (loading) return;
-
-        if (printerState === 'offline') {
-            window.print();
-            return;
-        }
-
-        const status = await printerService.getStatus();
-
-        if (status.status === 'online') {
-            try {
-                const encoder = new ESCPOS();
-                encoder
-                    .reset()
-                    .align('center')
-                    .bold(true)
-                    .textLine('DAILY REPORT')
-                    .bold(false)
-                    .textLine(formatDate(new Date()))
-                    .textLine('DigitalMuneem App')
-                    .feed(1)
-                    .separator()
-                    .align('left')
-                    .bold(true)
-                    .textLine('SALES SUMMARY')
-                    .bold(false)
-                    .textLine(`Transactions: ${totals.count}`)
-                    .bold(true)
-                    .textLine(`Total Sales: ${formatCurrency(totals.sales)}`)
-                    .bold(false)
-                    .separator()
-                    .bold(true)
-                    .textLine('TAX SUMMARY')
-                    .bold(false)
-                    .textLine(`GST Collected: ${formatCurrency(totals.gstCollected)}`)
-                    .textLine(`GST Paid: ${formatCurrency(totals.gstPaid)}`)
-                    .feed(1)
-                    .bold(true)
-                    .textLine(`Net GST: ${formatCurrency(totals.gstCollected - totals.gstPaid)}`)
-                    .bold(false)
-                    .separator()
-                    .align('center')
-                    .textLine('End of Report')
-                    .textLine(new Date().toLocaleTimeString())
-                    .feed(3)
-                    .cut();
-
-                const success = await printerService.print(encoder.encode());
-                if (!success) throw new Error("Server print failed");
-                toast.success("Printed Daily Report");
-            } catch (error) {
-                console.error("Print Error", error);
-                toast.error("Printer error. Falling back to system dialog.");
-                window.print();
-            }
-        } else {
-            setTimeout(() => {
-                window.print();
-            }, 500);
-        }
+        // Popup always uses browser print dialog.
+        // USB printing is handled directly from the main Reports window.
+        window.print();
     };
 
     if (loading) return <div>Generating report...</div>;

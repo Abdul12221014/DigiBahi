@@ -6,7 +6,8 @@ import { formatCurrency, formatDate } from '@/lib/gst';
 import { toast } from 'sonner';
 import { FileText, Download, Printer, Usb } from 'lucide-react';
 import { saveAs } from 'file-saver';
-import { printerService } from '@/services/PrinterService';
+import { usbPrinter } from '@/services/UsbPrinterService';
+import { ESCPOS } from '@/lib/escpos';
 
 // Lazy-load jsPDF
 const loadJsPDF = async () => {
@@ -17,16 +18,33 @@ const loadJsPDF = async () => {
 export function Reports() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [printerStatus, setPrinterStatus] = useState<{ status: string, port: string }>({ status: 'checking', port: '' });
+  const [usbConnected, setUsbConnected] = useState(false);
 
   useEffect(() => {
     loadEntries();
-    checkPrinterStatus();
+    // Silently reconnect to a previously paired printer (no dialog shown)
+    if (navigator.usb) {
+      usbPrinter.reconnect().then(ok => {
+        if (ok) setUsbConnected(true);
+      });
+    }
   }, []);
 
-  const checkPrinterStatus = async () => {
-    const status = await printerService.getStatus();
-    setPrinterStatus(status);
+  const connectPrinter = async () => {
+    try {
+      const ok = await usbPrinter.connect();
+      setUsbConnected(ok);
+      if (ok) toast.success('USB Printer connected!');
+      else toast.error('Could not connect to printer. Make sure it is plugged in.');
+    } catch {
+      toast.error('Printer connection cancelled.');
+    }
+  };
+
+  const disconnectPrinter = async () => {
+    await usbPrinter.disconnect();
+    setUsbConnected(false);
+    toast.info('Printer disconnected.');
   };
 
   async function loadEntries() {
@@ -195,16 +213,122 @@ export function Reports() {
     toast.success('Ledger exported to CSV');
   };
 
-  const printReceipt = (id: number) => {
-    // Open in a small popup window for thermal printing
-    const width = 400;
-    const height = 600;
+  const printReceipt = async (id: number) => {
+    // If USB printer is connected, print directly from this window (avoids cross-window singleton issue)
+    if (usbConnected && usbPrinter.isConnected()) {
+      const entry = entries.find(e => e.id === id);
+      if (!entry) { toast.error('Entry not found'); return; }
+      try {
+        const encoder = new ESCPOS();
+        encoder
+          .reset()
+          .align('center')
+          .bold(true).textLine('DigitalMuneem').bold(false)
+          .textLine('Professional Accounting')
+          .textLine('Ph: +91 98765 43210')
+          .feed(1).separator()
+          .align('left')
+          .textLine(`Date: ${formatDate(entry.date)}`)
+          .textLine(`Rcpt #: TRX-${entry.id}`)
+          .textLine(`Type: ${entry.type.toUpperCase()}`)
+          .separator()
+          .bold(true).textLine(entry.description).bold(false)
+          .textLine(`Amount: ${formatCurrency(entry.amount)}`)
+          .textLine(`GST: ${formatCurrency(entry.gstAmount)}`)
+          .separator()
+          .align('right')
+          .bold(true).textLine(`TOTAL: ${formatCurrency(entry.amount + entry.gstAmount)}`).bold(false)
+          .feed(2).align('center')
+          .textLine('Thank you for your business!')
+          .textLine('Powered by DigitalMuneem')
+          .feed(3).cut();
+        const success = await usbPrinter.print(encoder.encode());
+        if (!success) throw new Error('USB print failed');
+        toast.success('Printed receipt to thermal printer');
+      } catch (error) {
+        console.error('USB Receipt Print Error:', error);
+        toast.error('Printer error. Opening print dialog instead.');
+        openReceiptPopup(id);
+      }
+    } else {
+      // Not connected — open popup for browser print dialog
+      openReceiptPopup(id);
+    }
+  };
+
+  const openReceiptPopup = (id: number) => {
+    const width = 400, height = 600;
     const left = (window.screen.width - width) / 2;
     const top = (window.screen.height - height) / 2;
-
     window.open(
-      `/#/print/receipt/${id}?autoprint=true&printer=${printerStatus.status}`,
+      `/#/print/receipt/${id}?autoprint=true&printer=offline`,
       'ReceiptPrint',
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+  };
+
+  const printDailyReport = async () => {
+    // If USB printer is connected, print directly from this window
+    if (usbConnected && usbPrinter.isConnected()) {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayEntries = entries.filter(e => new Date(e.date) >= today);
+        const dailyTotals = todayEntries.reduce((acc, e) => {
+          if (e.type === 'sale' || e.type === 'receipt') {
+            acc.sales += e.amount + e.gstAmount;
+            acc.gstCollected += e.gstAmount;
+            acc.count++;
+          } else if (e.type === 'purchase' || e.type === 'expense') {
+            acc.expenses += e.amount + e.gstAmount;
+            acc.gstPaid += e.gstAmount;
+          }
+          return acc;
+        }, { sales: 0, expenses: 0, gstCollected: 0, gstPaid: 0, count: 0 });
+
+        const encoder = new ESCPOS();
+        encoder
+          .reset()
+          .align('center')
+          .bold(true).textLine('DAILY REPORT').bold(false)
+          .textLine(formatDate(new Date().toISOString()))
+          .textLine('DigitalMuneem App')
+          .feed(1).separator()
+          .align('left')
+          .bold(true).textLine('SALES SUMMARY').bold(false)
+          .textLine(`Transactions: ${dailyTotals.count}`)
+          .bold(true).textLine(`Total Sales: ${formatCurrency(dailyTotals.sales)}`).bold(false)
+          .separator()
+          .bold(true).textLine('TAX SUMMARY').bold(false)
+          .textLine(`GST Collected: ${formatCurrency(dailyTotals.gstCollected)}`)
+          .textLine(`GST Paid: ${formatCurrency(dailyTotals.gstPaid)}`)
+          .feed(1)
+          .bold(true).textLine(`Net GST: ${formatCurrency(dailyTotals.gstCollected - dailyTotals.gstPaid)}`).bold(false)
+          .separator()
+          .align('center')
+          .textLine('End of Report')
+          .textLine(new Date().toLocaleTimeString())
+          .feed(3).cut();
+        const success = await usbPrinter.print(encoder.encode());
+        if (!success) throw new Error('USB print failed');
+        toast.success('Printed daily report to thermal printer');
+      } catch (error) {
+        console.error('USB Daily Report Print Error:', error);
+        toast.error('Printer error. Opening print dialog instead.');
+        openDailyReportPopup();
+      }
+    } else {
+      openDailyReportPopup();
+    }
+  };
+
+  const openDailyReportPopup = () => {
+    const width = 400, height = 600;
+    const left = (window.screen.width - width) / 2;
+    const top = (window.screen.height - height) / 2;
+    window.open(
+      `/#/print/daily-report?autoprint=true&printer=offline`,
+      'DailyReportPrint',
       `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
     );
   };
@@ -220,30 +344,36 @@ export function Reports() {
           Reports & Analytics
         </h2>
         <div className="flex gap-2">
-          {printerStatus.status === 'online' ? (
-            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">
-              <Printer className="w-3 h-3" />
-              Printer Online ({printerStatus.port})
+          {/* USB Printer Status Badge */}
+          {usbConnected ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">
+                <Usb className="w-3 h-3" />
+                USB Printer Connected
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={disconnectPrinter}
+                className="text-xs h-7 px-2 border-red-200 text-red-600 hover:bg-red-50"
+              >
+                Disconnect
+              </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">
-              <Printer className="w-3 h-3" />
-              Printer Offline
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={connectPrinter}
+              className="flex items-center gap-2 text-xs border-dashed border-gray-400 hover:border-gray-600"
+            >
+              <Usb className="w-3 h-3" />
+              Connect USB Printer
+            </Button>
           )}
 
           <Button
-            onClick={() => {
-              const width = 400;
-              const height = 600;
-              const left = (window.screen.width - width) / 2;
-              const top = (window.screen.height - height) / 2;
-              window.open(
-                `/#/print/daily-report?autoprint=true&printer=${printerStatus.status}`,
-                'DailyReportPrint',
-                `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-              );
-            }}
+            onClick={printDailyReport}
             className="bg-black text-white hover:bg-gray-800"
           >
             <Printer className="w-4 h-4 mr-2" />
