@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 from ...services.whatsapp_service import WhatsAppService
 from ...db.base import get_db
 from ...db import models
+from ..deps import get_current_session
+from ...db.models import Session as SessionModel
 
 router = APIRouter(prefix="/api/v1/whatsapp", tags=["whatsapp"])
 
@@ -96,7 +98,7 @@ class SendReportResponse(BaseModel):
 # ─── OTP Endpoints ─────────────────────────────────────────────────────────────
 
 @router.post("/send-otp", response_model=SendOTPResponse)
-async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
+async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
     """
     Send OTP via WhatsApp Business API.
     OTP is stored in SQLite (survives restarts). Plaintext OTP is never persisted — only a sha256 hash.
@@ -196,7 +198,7 @@ async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/verify-otp", response_model=VerifyOTPResponse)
-async def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
+async def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
     """
     Verify OTP code against the DB-persisted hash.
     Max 5 attempts per OTP; expired or used OTPs are rejected.
@@ -259,7 +261,7 @@ async def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
 # ─── Invoice Endpoints ─────────────────────────────────────────────────────────
 
 @router.post("/send-invoice", response_model=SendInvoiceResponse)
-async def send_invoice(request: SendInvoiceRequest):
+async def send_invoice(request: SendInvoiceRequest, _session: SessionModel = Depends(get_current_session)):
     """
     Send invoice via WhatsApp.
     Base64 PDFs cannot be sent directly — WhatsApp Business API requires a public URL.
@@ -289,6 +291,7 @@ async def send_invoice_url(
     document_url: str,
     filename: str = "invoice.pdf",
     caption: Optional[str] = None,
+    _session: SessionModel = Depends(get_current_session),
 ):
     """Send invoice PDF via WhatsApp using a publicly accessible URL."""
     if not whatsapp_service:
@@ -327,7 +330,7 @@ async def send_invoice_url(
 # ─── Report Endpoints ──────────────────────────────────────────────────────────
 
 @router.post("/send-report", response_model=SendReportResponse)
-async def send_report(request: SendReportRequest):
+async def send_report(request: SendReportRequest, _session: SessionModel = Depends(get_current_session)):
     """
     Send report via WhatsApp.
     Same as send-invoice: base64 not supported; returns structured failure for frontend fallback.
@@ -353,6 +356,7 @@ async def send_report_url(
     document_url: str,
     filename: str = "report.pdf",
     caption: Optional[str] = None,
+    _session: SessionModel = Depends(get_current_session),
 ):
     """Send report PDF via WhatsApp using a publicly accessible URL."""
     if not whatsapp_service:
@@ -397,7 +401,7 @@ class InvoiceNumberResponse(BaseModel):
 
 
 @router.post("/invoice-number/next", response_model=InvoiceNumberResponse)
-async def get_next_invoice_number(db: Session = Depends(get_db)):
+async def get_next_invoice_number(db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
     """
     Atomically reserve the next invoice number for this calendar year.
     Format: INV-YYYY-NNN (zero-padded to 3 digits, then 4 once > 999).

@@ -320,7 +320,8 @@ def get_summary(
     from_: str = Query(None, alias="from", description="Date from (YYYY-MM-DD)"),
     to: str = Query(None, description="Date to (YYYY-MM-DD)"),
     type: Optional[str] = Query(None, description="Filter by type"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session)
 ):
     """
     Returns totals for period:
@@ -389,7 +390,8 @@ def get_summary(
 def get_monthly_summary(
     year: int = Query(..., ge=2000, le=2100, description="Year (2000-2100)"),
     type: Optional[str] = Query(None, description="Filter by type"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session)
 ):
     """
     Returns monthly aggregates for year:
@@ -461,7 +463,8 @@ def get_party_summary(
     limit: int = Query(5, ge=1, le=20, description="Top N parties"),
     from_: str = Query(None, alias="from", description="Date from (YYYY-MM-DD)"),
     to: str = Query(None, description="Date to (YYYY-MM-DD)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session)
 ):
     """
     Returns top parties by transaction volume:
