@@ -8,7 +8,8 @@ from ...db.base import get_db
 from ...db import models
 from ...db import schemas
 from .sync_ws import broadcast
-from ..deps import get_current_session
+from ..deps import get_current_session, require_owner, require_owner_or_accountant
+from ...db.models import User as UserModel
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["Inventory"])
 
@@ -56,7 +57,7 @@ def get_items(
 
 
 @router.post("/items", response_model=schemas.InventoryItemOut)
-def create_item(item: schemas.InventoryItemCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def create_item(item: schemas.InventoryItemCreate, db: Session = Depends(get_db), _user: UserModel = Depends(require_owner_or_accountant)):
     """Create new inventory item"""
     try:
         # Check for duplicate SKU
@@ -158,7 +159,7 @@ def get_item(item_id: int, db: Session = Depends(get_db), _session=Depends(get_c
 
 
 @router.put("/items/{item_id}", response_model=schemas.InventoryItemOut)
-def update_item(item_id: int, item: schemas.InventoryItemCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def update_item(item_id: int, item: schemas.InventoryItemCreate, db: Session = Depends(get_db), _user: UserModel = Depends(require_owner_or_accountant)):
     """Update inventory item"""
     db_item = db.query(models.InventoryItem).filter(
         models.InventoryItem.id == item_id,
@@ -209,7 +210,7 @@ def update_item(item_id: int, item: schemas.InventoryItemCreate, db: Session = D
 
 
 @router.delete("/items/{item_id}")
-def delete_item(item_id: int, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def delete_item(item_id: int, db: Session = Depends(get_db), _user: UserModel = Depends(require_owner)):
     """Soft delete inventory item"""
     try:
         item = db.query(models.InventoryItem).filter(
@@ -272,7 +273,7 @@ def delete_item(item_id: int, db: Session = Depends(get_db), _session=Depends(ge
 # ---------------------------
 
 @router.post("/stock-transactions", response_model=schemas.StockTransactionOut)
-def create_stock_transaction(txn: schemas.StockTransactionCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def create_stock_transaction(txn: schemas.StockTransactionCreate, db: Session = Depends(get_db), _user: UserModel = Depends(require_owner_or_accountant)):
     """Create stock transaction"""
     # Validate item exists
     item = db.query(models.InventoryItem).filter(

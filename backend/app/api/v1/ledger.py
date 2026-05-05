@@ -9,7 +9,8 @@ from ...db.base import get_db
 from ...db import models
 from ...db import schemas
 from .sync_ws import broadcast
-from ..deps import get_current_session
+from ..deps import get_current_session, require_owner, require_owner_or_accountant
+from ...db.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ def get_ledger(
 
 
 @router.post("/ledger", response_model=schemas.LedgerEntryOut)
-def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(get_db), _user: User = Depends(require_owner_or_accountant)):
     """Create ledger entry with idempotency support"""
     try:
         # Idempotency check (within transaction)
@@ -162,7 +163,7 @@ def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(
             party_name=entry.party_name,
             reference_no=entry.reference_no,
             tags=entry.tags,
-            created_by=_session.user_id
+            created_by=_user.id
         )
         
         db.add(db_entry)
@@ -216,7 +217,7 @@ def update_ledger_entry(
     id: int,
     entry: schemas.LedgerEntryCreate,
     db: Session = Depends(get_db),
-    _session=Depends(get_current_session),
+    _user: User = Depends(require_owner_or_accountant),
 ):
     """Update ledger entry"""
     db_entry = db.query(models.LedgerEntry).filter(
@@ -271,7 +272,7 @@ def update_ledger_entry(
 
 
 @router.delete("/ledger/{id}")
-def delete_ledger_entry(id: int, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def delete_ledger_entry(id: int, db: Session = Depends(get_db), _user: User = Depends(require_owner)):
     """Soft delete ledger entry"""
     db_entry = db.query(models.LedgerEntry).filter(
         models.LedgerEntry.id == id,
