@@ -4,8 +4,8 @@ Shared FastAPI dependencies.
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
-from .db.base import get_db
-from .db.models import Session as SessionModel
+from ..db.base import get_db
+from ..db.models import Session as SessionModel
 
 
 def get_current_session(
