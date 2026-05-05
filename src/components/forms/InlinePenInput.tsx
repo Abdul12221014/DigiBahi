@@ -13,6 +13,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Pen, X, Undo2, Redo2, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { normalizeNumbers, applyHindiCorrections } from '@/features/pen-input/ocr/postprocess';
 
 // Lazy-load OCR service
 const loadOCR = async () => {
@@ -579,10 +580,12 @@ export function InlinePenInput({
       const avgConfidence = results.reduce((sum, r) => sum + (r.confidence || 0), 0) / results.length;
       
       // Process text based on target field
-      let processedText = fullText;
+      // Apply Hindi numeral conversion + OCR correction for all text fields
+      const cleanedText = normalizeNumbers(applyHindiCorrections(fullText));
+      let processedText = cleanedText;
       if (targetField === 'reference_no') {
         // Keep alphanumeric and - _
-        processedText = fullText.replace(/[^A-Za-z0-9-_]/g, '').slice(0, 32);
+        processedText = cleanedText.replace(/[^A-Za-z0-9-_]/g, '').slice(0, 32);
         if (!processedText) {
           toast.warning('Reference appears empty. Please write clearly (letters/numbers only).');
           // Clear timeout before early return

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from typing import List
 from datetime import datetime
 from ...db.base import get_db
@@ -234,10 +235,10 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
         item.is_active = False
         item.deleted_at = datetime.utcnow()
         
-        # Also soft delete related stock transactions to prevent orphaned records
+        # Soft delete related stock transactions so inventory calculations stay correct
         db.query(models.StockTransaction).filter(
             models.StockTransaction.item_id == item_id
-        ).update({"updated_at": datetime.utcnow()})
+        ).update({"is_active": False, "updated_at": datetime.utcnow()})
         
         db.commit()
         
@@ -324,26 +325,29 @@ def create_stock_transaction(txn: schemas.StockTransactionCreate, db: Session = 
 
 @router.get("/summary", response_model=List[schemas.InventorySummary])
 def get_inventory_summary(db: Session = Depends(get_db)):
-    """Get inventory summary with stock levels"""
+    """Get inventory summary with stock levels — uses SQL aggregation to avoid N+1 queries."""
+    # Aggregate stock quantities per item in a single query
+    stock_totals = dict(
+        db.query(models.StockTransaction.item_id, func.sum(models.StockTransaction.qty))
+        .filter(models.StockTransaction.is_active == True)
+        .group_by(models.StockTransaction.item_id)
+        .all()
+    )
+
     items = db.query(models.InventoryItem).filter(models.InventoryItem.is_active == True).all()
-    
+
     result = []
     for item in items:
-        # Calculate current stock from transactions
-        current_stock = sum([txn.qty for txn in item.stock_transactions]) + (item.opening_qty or 0)
-        
-        # Calculate value
+        current_stock = (stock_totals.get(item.id) or 0) + (item.opening_qty or 0)
         unit_price = item.sale_price or item.purchase_price or 0
-        value = current_stock * unit_price
-        
         result.append({
             "item_id": item.id,
             "name": item.name,
             "stock": current_stock,
-            "value": value,
+            "value": current_stock * unit_price,
             "gst_rate": item.gst_rate
         })
-    
+
     return result
 
 

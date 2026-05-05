@@ -20,13 +20,15 @@ aggregator = FederatedAggregator()
 _secure_sync = None
 
 def get_secure_sync():
-    """Lazy initialization of SecureSync with default dev key if env var not set"""
+    """Lazy initialization of SecureSync — requires FEDERATED_MASTER_SECRET env var."""
     global _secure_sync
     if _secure_sync is None:
         import os
         if not os.getenv('FEDERATED_MASTER_SECRET'):
-            # Use a default dev key for local development
-            os.environ['FEDERATED_MASTER_SECRET'] = 'dev-master-key-change-in-production-32chars!!'
+            raise RuntimeError(
+                "FEDERATED_MASTER_SECRET environment variable is not set. "
+                "Set it to a random 32+ character string before starting the server."
+            )
         _secure_sync = SecureSync()
     return _secure_sync
 

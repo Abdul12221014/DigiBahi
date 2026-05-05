@@ -74,4 +74,9 @@ export function onWSMessage(fn: (msg: any) => void) {
   listeners.push(fn);
 }
 
-export default { connectWS, initWS, onWSMessage };
+export function offWSMessage(fn: (msg: any) => void) {
+  const idx = listeners.indexOf(fn);
+  if (idx !== -1) listeners.splice(idx, 1);
+}
+
+export default { connectWS, initWS, onWSMessage, offWSMessage };

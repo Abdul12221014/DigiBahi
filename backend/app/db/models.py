@@ -112,6 +112,33 @@ class StockTransaction(Base):
 
 
 # ========================================
+# WHATSAPP OTP SESSIONS (persistent across restarts)
+# ========================================
+
+class OtpSession(Base):
+    __tablename__ = "otp_sessions"
+    id = Column(Integer, primary_key=True)
+    phone_number = Column(String, index=True, nullable=False)
+    otp_hash = Column(String, nullable=False)  # sha256 of OTP — never store plaintext
+    message_id = Column(String, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ========================================
+# INVOICE NUMBER SEQUENCE (server-side, multi-device safe)
+# ========================================
+
+class InvoiceSequence(Base):
+    __tablename__ = "invoice_sequence"
+    id = Column(Integer, primary_key=True)
+    year = Column(Integer, unique=True, nullable=False, index=True)
+    last_number = Column(Integer, default=0, nullable=False)
+
+
+# ========================================
 # LEDGER IDEMPOTENCY (Week-1 Ledger Enhancement)
 # ========================================
 

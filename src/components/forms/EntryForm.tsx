@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,11 @@ import { toast } from 'sonner';
 import { Calendar, FileText, DollarSign, Percent, User, Hash, Tag, PenTool } from 'lucide-react';
 import { getLedgerDataSource } from '@/services/ledger.datasource';
 import { InlinePenInput, type InlineTargetField } from './InlinePenInput';
+import { useInvoiceShare } from '@/features/payments/hooks/useInvoiceShare';
+import { WhatsAppPhoneModal } from '@/components/modals/WhatsAppPhoneModal';
+import { db } from '@/lib/db';
+import { findBestContact, upsertContact } from '@/lib/customerMatch';
+import { useOCRAutoFill, type ParsedBillFields } from '@/hooks/useOCRAutoFill';
 
 interface EntryFormProps {
   entry?: LedgerEntry; // Optional entry for edit mode
@@ -21,6 +26,12 @@ interface EntryFormProps {
 
 export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   const isEditMode = !!entry;
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   // Smart date default: Remember last transaction date or use today
   const getSmartDate = (): string => {
@@ -56,6 +67,35 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   const [partySuggestions, setPartySuggestions] = useState<string[]>([]);
   const [showPartySuggestions, setShowPartySuggestions] = useState(false);
 
+  // Phase 5: OCR Integration
+  const { autoFill } = useOCRAutoFill({
+    setAmount,
+    setPartyName,
+    setDate,
+    setDescription,
+    setReferenceNo,
+  });
+
+  // Handle OCR trigger (Placeholder for actual camera/vision API call)
+  const handleScanBill = () => {
+    toast.success('Scanning... (OCR Integration Demo)', { duration: 2000 });
+    setTimeout(() => {
+      autoFill({
+        amount: 4500,
+        party_name: 'Rahul Trading Co',
+        date: new Date().toISOString().split('T')[0],
+        description: 'Office Supplies (Scanned)',
+        reference_no: 'INV-SCAN-01',
+        confidence: 0.89,
+      });
+    }, 1500);
+  };
+
+  // Share system states
+  const { shareInvoice, isSharing } = useInvoiceShare();
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [pendingShareEntry, setPendingShareEntry] = useState<LedgerEntry | null>(null);
+
   // Refs for input fields (for inline pen input positioning)
   const descriptionInputRef = useRef<HTMLInputElement>(null);
   const partyNameInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +123,10 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
         setInlinePenTarget(custom.detail.targetField);
       }
     };
+    window.addEventListener('quickPenEntry', handleQuickPenEntry);
+    return () => {
+      window.removeEventListener('quickPenEntry', handleQuickPenEntry);
+    };
   }, []);
 
   // Load party name suggestions from previous entries
@@ -107,11 +151,13 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   }, []);
 
   // Filter suggestions based on input
-  const filteredSuggestions = partyName
-    ? partySuggestions.filter(p =>
-      p.toLowerCase().includes(partyName.toLowerCase())
-    ).slice(0, 5)
-    : partySuggestions.slice(0, 5);
+  const filteredSuggestions = useMemo(() => {
+    return partyName
+      ? partySuggestions
+          .filter(p => p.toLowerCase().includes(partyName.toLowerCase()))
+          .slice(0, 5)
+      : partySuggestions.slice(0, 5);
+  }, [partyName, partySuggestions]);
 
   // Update form when entry prop changes
   useEffect(() => {
@@ -127,7 +173,7 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
     }
   }, [entry]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = async (shouldShare: boolean = false, e?: React.FormEvent) => {
     e?.preventDefault();
     setLoading(true);
 
@@ -145,8 +191,9 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
       }
 
       const gstCalc = calculateGST(baseAmount, gstRate);
-
       const datasource = getLedgerDataSource();
+
+      let savedEntry: LedgerEntry;
 
       if (isEditMode && entry?.id) {
         // Update existing entry
@@ -161,7 +208,7 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
           reference_no: referenceNo.trim(),
           tags: tags.trim(),
         };
-        await datasource.update(entry.id, updateData);
+        savedEntry = await datasource.update(entry.id, updateData);
         toast.success('Entry updated successfully!');
       } else {
         // Create new entry
@@ -177,23 +224,79 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
           reference_no: referenceNo.trim(),
           tags: tags.trim(),
         };
-        await datasource.create(newEntry);
-        // Save date for smart defaults
+        savedEntry = await datasource.create(newEntry);
         localStorage.setItem('digbahi_last_transaction_date', date);
         toast.success('Entry added successfully!');
       }
-      onSuccess();
+
+      // Guard: datasource.update casts db.ledger.get() which can return undefined
+      if (!savedEntry) {
+        toast.error('Entry could not be retrieved after saving. Please refresh.');
+        onSuccess();
+        return;
+      }
+
+      // Handle Sharing Logic
+      if (shouldShare && savedEntry.party_name) {
+        setPendingShareEntry(savedEntry);
+        try {
+          // Phase 3: Fuzzy match lookup instead of exact equalIgnoreCase
+          const { contact, isExact } = await findBestContact(savedEntry.party_name);
+
+          // Only auto-share if we have a very confident match (exact or close) with a phone number
+          if (contact && contact.phone) {
+            shareInvoice(savedEntry, contact.phone);
+            onSuccess();
+          } else {
+            // Show modal and wait for handlePhoneSubmit to fire onSuccess
+            setShowPhoneModal(true);
+          }
+        } catch (err) {
+          console.error('[Smart Contact] error:', err);
+          setShowPhoneModal(true);
+        }
+      } else {
+        // Not sharing or no party name, just exit
+        if (shouldShare && !savedEntry.party_name) {
+          toast.info('Entry saved, but cannot share without a Party Name.');
+        }
+        onSuccess();
+      }
+
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       toast.error(msg || `Failed to ${isEditMode ? 'update' : 'add'} entry`);
     } finally {
-      setLoading(false);
+      // Only reset loading if still mounted (avoid state update on unmounted component)
+      if (isMountedRef.current) setLoading(false);
     }
+  };
+
+  const handlePhoneSubmit = async (phone: string, saveForFuture: boolean) => {
+    setShowPhoneModal(false);
+    if (!pendingShareEntry) {
+      onSuccess();
+      return;
+    }
+
+    if (saveForFuture && pendingShareEntry.party_name) {
+      try {
+        // Phase 3: Use upsertContact to prevent duplicate CustomerContacts
+        await upsertContact(pendingShareEntry.party_name, phone);
+        toast.success(`Number saved for ${pendingShareEntry.party_name}`);
+      } catch (err) {
+        console.error('Failed to save contact:', err);
+      }
+    }
+
+    // Fire the share intent asynchronously, then unmount immediately
+    shareInvoice(pendingShareEntry, phone);
+    onSuccess();
   };
 
   useHotkeys('ctrl+s, meta+s', (e) => {
     e.preventDefault();
-    handleSubmit();
+    handleSubmit(false);
   }, { enableOnFormTags: true }, [amount, description, partyName, type, gstRate, date]);
 
   const previewGST = amount ? calculateGST(parseFloat(amount) || 0, gstRate) : null;
@@ -252,14 +355,28 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
         />
       )}
 
-      <Card className="p-6 shadow-strong gradient-card animate-scale-in">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-[hsl(145_70%_32%)] to-[hsl(40_98%_48%)] bg-clip-text text-transparent">
-            {isEditMode ? 'Edit Entry' : 'Add New Entry'}
-          </h2>
-        </div>
+      <Card className="p-6 bg-white border shadow-medium animate-fade-in relative z-10 max-h-[85vh] overflow-y-auto">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(false, e); }} className="space-y-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-[hsl(40_98%_48%)] bg-clip-text text-transparent">
+              {isEditMode ? 'Edit Entry' : 'New Transaction'}
+            </h2>
+            
+            {/* Phase 5: OCR Scan Button */}
+            {!isEditMode && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                onClick={handleScanBill}
+                className="bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200 shadow-sm"
+              >
+                <PenTool className="w-4 h-4 mr-2" />
+                Scan Bill (OCR)
+              </Button>
+            )}
+          </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date" className="flex items-center gap-2">
@@ -512,9 +629,22 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
           )}
 
           <div className="flex gap-3 pt-4">
+            {(type === 'sale' || type === 'receipt') && (
+              <Button
+                type="button"
+                disabled={loading || isSharing}
+                onClick={(e) => handleSubmit(true, e)}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white hover-shadow hover-glow touch-friendly"
+                size="lg"
+                title="Save & Share on WhatsApp"
+              >
+                {loading || isSharing ? 'Processing...' : 'Save & Share'}
+              </Button>
+            )}
             <Button
-              type="submit"
-              disabled={loading}
+              type="button"
+              onClick={(e) => handleSubmit(false, e)}
+              disabled={loading || isSharing}
               className="flex-1 gradient-hero touch-friendly hover-glow hover-scale"
               size="lg"
               title="Save (Ctrl+S)"
@@ -527,12 +657,24 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
               variant="outline"
               className="flex-1 touch-friendly hover-lift"
               size="lg"
+              disabled={loading || isSharing}
             >
               Cancel
             </Button>
           </div>
         </form>
       </Card>
+      {pendingShareEntry && (
+        <WhatsAppPhoneModal
+          open={showPhoneModal}
+          partyName={pendingShareEntry.party_name || 'Customer'}
+          onClose={() => {
+            setShowPhoneModal(false);
+            onSuccess(); // Close form anyway if they cancel sharing
+          }}
+          onSubmit={handlePhoneSubmit}
+        />
+      )}
     </>
   );
 }

@@ -21,13 +21,14 @@ CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "config/vision-ke
 
 if CREDENTIALS_JSON:
     try:
-        # Create a temporary credentials file from the JSON string
         import tempfile
+        import atexit
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tf:
             tf.write(CREDENTIALS_JSON)
             temp_creds_path = tf.name
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_creds_path
-        logger.info(f"Using Google Vision credentials from environment variable")
+        atexit.register(lambda: os.path.exists(temp_creds_path) and os.unlink(temp_creds_path))
+        logger.info("Using Google Vision credentials from environment variable")
     except Exception as e:
         logger.error(f"Failed to create temporary credentials file from environment: {e}")
 elif os.path.exists(CREDENTIALS_PATH):

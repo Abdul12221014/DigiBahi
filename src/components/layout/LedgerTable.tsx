@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Trash2, Plus, Download, Printer, PenTool } from 'lucide-react';
+import { MessageCircle, Edit, Trash2, Plus, Download, Printer, PenTool } from 'lucide-react';
 import { toast } from 'sonner';
 import { LedgerFormatId, getFormatById } from '@/features/ledger-formats';
 import { getLedgerDataSource } from '@/services/ledger.datasource';
@@ -13,6 +13,10 @@ import { useLedgerSync } from '@/hooks/useLedgerSync';
 import { FilterBar, FilterState } from './FilterBar';
 import { PaginationControls } from './PaginationControls';
 import { saveAs } from 'file-saver';
+import { useInvoiceShare } from '@/features/payments/hooks/useInvoiceShare';
+import { WhatsAppPhoneModal } from '@/components/modals/WhatsAppPhoneModal';
+import { db } from '@/lib/db';
+import { findBestContact, upsertContact } from '@/lib/customerMatch';
 import '@/styles/print.css';
 
 interface LedgerTableProps {
@@ -41,6 +45,11 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
   });
 
   const [refreshLedger, setRefreshLedger] = useState(0);
+
+  // WhatsApp Share State
+  const { shareInvoice, isSharing } = useInvoiceShare();
+  const [shareEntry, setShareEntry] = useState<LedgerEntry | null>(null);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
 
   // Get selected format from localStorage
   const selectedFormatId = (localStorage.getItem('digbahi_format') || 'traditional-khata') as LedgerFormatId;
@@ -102,6 +111,48 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
       setLoading(false);
     }
   }
+
+  const handleShareClick = async (entry: LedgerEntry) => {
+    if (!entry.party_name) {
+      toast.error('Cannot share bill: No party name specified.');
+      return;
+    }
+    
+    setShareEntry(entry);
+
+    // Smart Contact System matching (Phase 3: Fuzzy)
+    try {
+      const { contact } = await findBestContact(entry.party_name);
+
+      // We ONLY auto-share if we got a confident match that has a phone number
+      if (contact && contact.phone) {
+        shareInvoice(entry, contact.phone);
+      } else {
+        // Unknown or uncertain number, show modal
+        setShowPhoneModal(true);
+      }
+    } catch (err) {
+      console.error('Contact lookup failed:', err);
+      // Fallback to modal if DB errors
+      setShowPhoneModal(true);
+    }
+  };
+
+  const handlePhoneSubmit = async (phone: string, saveForFuture: boolean) => {
+    setShowPhoneModal(false);
+    if (!shareEntry) return;
+
+    if (saveForFuture && shareEntry.party_name) {
+      try {
+        await upsertContact(shareEntry.party_name, phone);
+        toast.success(`Number saved for ${shareEntry.party_name}`);
+      } catch (err) {
+        console.error('Failed to save contact:', err);
+      }
+    }
+
+    shareInvoice(shareEntry, phone);
+  };
 
   const handleResetFilters = () => {
     setFilters({
@@ -353,7 +404,23 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
                     {formatCurrency(Math.abs(balance))} {balance < 0 && '(Due)'}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end">
+                    <div className="flex gap-1 justify-end items-center">
+                      {(entry.type === 'sale' || entry.type === 'receipt') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={() => handleShareClick(entry)}
+                          disabled={isSharing && shareEntry?.id === entry.id}
+                          title="Share via WhatsApp"
+                        >
+                          {isSharing && shareEntry?.id === entry.id ? (
+                            <span className="animate-spin text-xs">⏳</span>
+                          ) : (
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -791,6 +858,15 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
           </tbody>
         </table>
       </div>
+
+      {shareEntry && (
+        <WhatsAppPhoneModal
+          open={showPhoneModal}
+          partyName={shareEntry.party_name || 'Customer'}
+          onClose={() => setShowPhoneModal(false)}
+          onSubmit={handlePhoneSubmit}
+        />
+      )}
     </div>
   );
 }

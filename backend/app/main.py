@@ -33,7 +33,8 @@ cors_env = os.getenv("CORS_ORIGINS")
 if cors_env:
     origins = [o.strip() for o in cors_env.split(",")]
 else:
-    origins = ["*"]
+    # Restrict to local dev origins by default; set CORS_ORIGINS env var for LAN/production access
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 app.add_middleware(
     CORSMiddleware,

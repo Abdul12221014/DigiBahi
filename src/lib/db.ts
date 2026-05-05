@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie';
 import type { UPIIntent, UPIReconcileRequest } from '@/features/payments/types/upi.types';
+import type { AnalyticsEvent } from './analytics';
 
 export interface User {
   id?: number;
@@ -34,6 +35,10 @@ export interface LedgerEntry {
   // Legacy fields (keep for backward compat during migration)
   userId?: number;  // Deprecated - use created_by
   createdAt?: Date; // Deprecated - use created_at
+  // Sync-ready fields (Phase 7)
+  customer_id?: number;        // FK → customerContacts.id
+  synced_at?: string | null;   // null = needs backend sync
+  remote_id?: string | null;   // server-assigned ID after sync
 }
 
 export interface GSTRecord {
@@ -62,6 +67,9 @@ export interface CustomerContact {
   gstin?: string;
   created_at: string;
   updated_at: string;
+  // Sync-ready fields (Phase 7)
+  synced_at?: string | null;   // null = needs backend sync
+  remote_id?: string | null;   // server-assigned ID after sync
 }
 
 export interface CreditEntry {
@@ -92,6 +100,7 @@ export class DigBahiDB extends Dexie {
   companySettings!: Table<CompanySettings>;
   customerContacts!: Table<CustomerContact>;
   creditEntries!: Table<CreditEntry>;
+  analyticsEvents!: Table<AnalyticsEvent>;
 
   constructor() {
     super('digbahi');
@@ -166,6 +175,23 @@ export class DigBahiDB extends Dexie {
       creditEntries: '++id, invoiceNumber, customerPhone, status'
     }).upgrade(async (tx) => {
       console.log('🚀 Adding credit entries table...');
+    });
+
+    // Version 8: Analytics events + sync-ready indexes
+    this.version(8).stores({
+      users:            '++id, username, role',
+      ledger:           '++id, date, type, party_name, customer_id, synced_at',
+      gstRecords:       '++id, ledgerId, status, createdAt',
+      upiIntents:       'id, upiId, status, createdAt',
+      syncQueue:        'id, txnRef, timestamp',
+      items:            '++id,nameKey,sku,gstRate,unit,createdAt',
+      stockTxns:        '++id,itemId,date,refLedgerId,type',
+      companySettings:  '++id',
+      customerContacts: '++id, phone, name, synced_at, remote_id',
+      creditEntries:    '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:  '++id, name, synced, timestamp, session_id',
+    }).upgrade(async () => {
+      console.log('🚀 v8: Analytics events table + sync-ready indexes added');
     });
   }
 }
@@ -252,6 +278,21 @@ export async function saveCompanySettings(settings: Omit<CompanySettings, 'id' |
 // Customer Contacts operations
 export async function getAllCustomerContacts(): Promise<CustomerContact[]> {
   return await db.customerContacts.orderBy('name').toArray();
+}
+
+export async function getRecentCustomerContacts(limit: number = 10): Promise<CustomerContact[]> {
+  return await db.customerContacts.orderBy('updated_at').reverse().limit(limit).toArray();
+}
+
+export async function searchCustomerContacts(query: string, limit: number = 10): Promise<CustomerContact[]> {
+  if (!query) return getRecentCustomerContacts(limit);
+  const lowerQuery = query.toLowerCase();
+  
+  // Natively filter via IndexedDB for scalable substring matches
+  return await db.customerContacts
+    .filter(c => c.name.toLowerCase().includes(lowerQuery) || c.phone.includes(query))
+    .limit(limit)
+    .toArray();
 }
 
 export async function getCustomerContactByPhone(phone: string): Promise<CustomerContact | undefined> {

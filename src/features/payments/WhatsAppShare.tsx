@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,30 +7,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { MessageCircle, User, Calendar, FileText, DollarSign, Percent, Hash, CreditCard, Wallet, Download, Copy, Check } from 'lucide-react';
 import { calculateGST, GST_RATES, formatCurrency, formatDate, type GSTRate } from '@/lib/gst';
-import { getCompanySettings, getAllCustomerContacts, saveCustomerContact, getCustomerContactByPhone, createCreditEntry } from '@/lib/db';
-import { getNextInvoiceNumber, commitInvoiceNumber } from './services/invoice.service';
+import { getCompanySettings, searchCustomerContacts, saveCustomerContact, getCustomerContactByPhone, createCreditEntry } from '@/lib/db';
+import { getNextInvoiceNumber, previewNextInvoiceNumber } from './services/invoice.service';
 import { getLedgerDataSource } from '@/services/ledger.datasource';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { whatsappAPIService } from './services/whatsapp-api.service';
+import { useOTPTimer } from '@/hooks/useOTPTimer';
+import { getDefaultCountry, buildWaUrl, formatPhoneDisplay } from '@/lib/countryCode';
+import { analytics } from '@/lib/analytics';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { LiveInvoicePreview } from './components/LiveInvoicePreview';
+import { useDebounce } from '@/hooks/useDebounce';
+import { shareWithFallback } from '@/lib/shareRetry';
 
-// Lazy-load jsPDF to reduce main bundle
-const loadJsPDF = async () => {
-  const { default: jsPDF } = await import(/* webpackChunkName: "jspdf" */ 'jspdf');
-  return jsPDF;
-};
-
-interface InvoiceData {
-  invoiceNumber: string;
-  date: string;
-  customerName: string;
-  customerPhone: string;
-  description: string;
-  amount: number;
-  gstRate: GSTRate;
-  gstAmount: number;
-  totalAmount: number;
-}
+import { generateInvoicePDF, type InvoiceData } from '@/lib/invoiceGenerator';
 
 export function WhatsAppShare() {
   const [customerName, setCustomerName] = useState('');
@@ -40,9 +35,9 @@ export function WhatsAppShare() {
   const [gstRate, setGstRate] = useState<GSTRate>(18);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [customerSuggestions, setCustomerSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [customerSuggestions, setCustomerSuggestions] = useState<{name: string, phone: string}[]>([]);
+  const [openCombobox, setOpenCombobox] = useState(false);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'generating' | 'wa_me'>('idle');
   const [companySettings, setCompanySettings] = useState<{ businessName: string; address?: string; gstin?: string; phone?: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
   const [otp, setOtp] = useState('');
@@ -53,10 +48,25 @@ export function WhatsAppShare() {
   const [showOTPInUI, setShowOTPInUI] = useState(false);
   const [otpCopied, setOtpCopied] = useState(false);
 
-  // Load company settings and get next invoice number on mount
+  const otpTimer = useOTPTimer(60);
+  const country = getDefaultCountry();
+
+  // Handle OTP Expiry
+  useEffect(() => {
+    if (otpTimer.isExpired && showOTP) {
+      setOtp('');
+      setOtpVerified(false);
+      setShowOTP(false);
+      toast.error('OTP expired. Please request a new one.');
+      analytics.track('otp_expired', { phone: customerPhone });
+    }
+  }, [otpTimer.isExpired, showOTP, customerPhone]);
+
+  // Load company settings and show a local preview of the next invoice number on mount.
+  // The real number is reserved from the server atomically at share time.
   useEffect(() => {
     loadCompanySettings();
-    setInvoiceNumber(getNextInvoiceNumber());
+    setInvoiceNumber(previewNextInvoiceNumber());
     
     // Remember last GST rate
     const lastGstRate = localStorage.getItem('digbahi_last_gst_rate');
@@ -68,22 +78,33 @@ export function WhatsAppShare() {
     }
   }, []);
 
-  // Load customer suggestions
-  useEffect(() => {
-    loadCustomerSuggestions();
-  }, []);
+  const debouncedCustomerName = useDebounce(customerName, 300);
 
-  // Show suggestions when typing customer name
+  // Load customer suggestions dynamically via Dexie based on debounce
   useEffect(() => {
-    if (customerName.trim().length > 0) {
-      const filtered = customerSuggestions.filter(c => 
-        c.toLowerCase().includes(customerName.toLowerCase())
-      );
-      setShowSuggestions(filtered.length > 0);
-    } else {
-      setShowSuggestions(false);
+    async function loadCustomerSuggestions() {
+      try {
+        const contacts = await searchCustomerContacts(debouncedCustomerName, 10);
+        const uniqueContacts = Array.from(
+          new Map(contacts.map(c => [c.name.toLowerCase(), { name: c.name, phone: c.phone || '' }])).values()
+        );
+        setCustomerSuggestions(uniqueContacts);
+      } catch (error) {
+        console.error('Failed to load customer suggestions:', error);
+      }
     }
-  }, [customerName, customerSuggestions]);
+    loadCustomerSuggestions();
+  }, [debouncedCustomerName]);
+
+  // Phone formatter effect
+  useEffect(() => {
+    if (customerPhone) {
+      const clean = customerPhone.replace(/\D/g, '');
+      if (clean !== customerPhone) {
+        setCustomerPhone(clean);
+      }
+    }
+  }, [customerPhone]);
 
   async function loadCompanySettings() {
     try {
@@ -101,15 +122,7 @@ export function WhatsAppShare() {
     }
   }
 
-  async function loadCustomerSuggestions() {
-    try {
-      const contacts = await getAllCustomerContacts();
-      const names = contacts.map(c => c.name).filter(Boolean);
-      setCustomerSuggestions([...new Set(names)]);
-    } catch (error) {
-      console.error('Failed to load customer suggestions:', error);
-    }
-  }
+
 
   function handleCustomerPhoneChange(phone: string) {
     const cleaned = phone.replace(/\D/g, '').slice(0, 10);
@@ -140,20 +153,19 @@ export function WhatsAppShare() {
 
   function handleSelectSuggestion(name: string) {
     setCustomerName(name);
-    setShowSuggestions(false);
     
-    // Find and set phone number for this customer
-    getAllCustomerContacts().then(contacts => {
-      const contact = contacts.find(c => c.name === name);
-      if (contact) {
-        setCustomerPhone(contact.phone);
-      }
-    });
+    // Find and set phone number for this customer from our suggestions
+    const contact = customerSuggestions.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (contact && contact.phone) {
+      handleCustomerPhoneChange(contact.phone);
+    }
   }
 
-  // Generate random 6-digit OTP
+  // Generate cryptographically secure 6-digit OTP
   function generateOTP(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return (100000 + (buf[0] % 900000)).toString();
   }
 
   // OTP Functions
@@ -170,6 +182,9 @@ export function WhatsAppShare() {
     setOtpSent(false);
     setShowOTPInUI(false);
     setOtpCopied(false);
+    otpTimer.reset();
+
+    analytics.track('otp_requested', { phone: customerPhone });
 
     // Try WhatsApp Business API first (backend integration)
     try {
@@ -193,6 +208,7 @@ export function WhatsAppShare() {
           description: 'Please check your WhatsApp messages.',
           duration: 5000,
         });
+        otpTimer.start();
         return;
       } else {
         throw new Error(result.message || 'Failed to send OTP');
@@ -262,6 +278,7 @@ export function WhatsAppShare() {
               }));
               setGeneratedOTP(otp.code);
               setOtpSent(true);
+              otpTimer.start();
               return;
             }
           } catch (getError: any) {
@@ -278,7 +295,7 @@ export function WhatsAppShare() {
       // Fallback: Send OTP via WhatsApp browser link (wa.me)
       try {
         const otpMessage = `Your OTP for DigitalMuneem invoice is: ${newOTP}\n\nThis OTP is valid for 10 minutes.\n\nPlease enter this OTP in the application to verify.`;
-        const whatsappUrl = `https://wa.me/91${customerPhone}?text=${encodeURIComponent(otpMessage)}`;
+        const whatsappUrl = buildWaUrl(customerPhone, country.dialCode, otpMessage);
         
         const whatsappWindow = window.open(whatsappUrl, '_blank');
         
@@ -306,22 +323,25 @@ export function WhatsAppShare() {
         expiresAt: Date.now() + 10 * 60 * 1000
       }));
 
+      otpTimer.start();
       toast.info('Please enter the 6-digit OTP sent to your WhatsApp');
     }
   }
 
-  async function handleVerifyOTP() {
-    if (otp.length !== 6) {
+  async function handleVerifyOTP(otpValue: string = otp) {
+    if (otpValue.length !== 6) {
       toast.error('Please enter 6-digit OTP');
       return;
     }
 
     // Try backend API verification first
     try {
-      const result = await whatsappAPIService.verifyOTP(customerPhone, otp);
+      const result = await whatsappAPIService.verifyOTP(customerPhone, otpValue);
       
       if (result.success) {
         setOtpVerified(true);
+        otpTimer.reset();
+        analytics.track('otp_verified', { method: 'backend' });
         toast.success('OTP verified successfully');
         // Clear stored OTP after successful verification
         sessionStorage.removeItem(`otp_${customerPhone}`);
@@ -352,8 +372,10 @@ export function WhatsAppShare() {
           }
           
           // Verify OTP
-          if (otp === storedOTP || otp === generatedOTP) {
+          if (otpValue === storedOTP || otpValue === generatedOTP) {
             setOtpVerified(true);
+            otpTimer.reset();
+            analytics.track('otp_verified', { method: 'fallback_session' });
             toast.success('OTP verified successfully');
             sessionStorage.removeItem(`otp_${customerPhone}`);
           } else {
@@ -361,8 +383,10 @@ export function WhatsAppShare() {
           }
         } catch (error) {
           // Fallback: verify against generatedOTP if sessionStorage fails
-          if (otp === generatedOTP) {
+          if (otpValue === generatedOTP) {
             setOtpVerified(true);
+            otpTimer.reset();
+            analytics.track('otp_verified', { method: 'fallback_generated' });
             toast.success('OTP verified successfully');
           } else {
             toast.error('Invalid OTP. Please check and try again.');
@@ -370,8 +394,10 @@ export function WhatsAppShare() {
         }
       } else {
         // Fallback: verify against generatedOTP
-        if (otp === generatedOTP) {
+        if (otpValue === generatedOTP) {
           setOtpVerified(true);
+          otpTimer.reset();
+          analytics.track('otp_verified', { method: 'fallback_generated_no_session' });
           toast.success('OTP verified successfully');
         } else {
           toast.error('Invalid OTP. Please request a new OTP.');
@@ -390,6 +416,7 @@ export function WhatsAppShare() {
       setOtpSent(false);
       setShowOTPInUI(false);
       setOtpCopied(false);
+      otpTimer.reset();
       // Clear stored OTP
       if (customerPhone) {
         sessionStorage.removeItem(`otp_${customerPhone}`);
@@ -411,127 +438,18 @@ export function WhatsAppShare() {
     }
   }
 
-  // Auto-fill OTP
-  function handleAutoFillOTP() {
-    if (generatedOTP) {
-      setOtp(generatedOTP);
-      toast.success('OTP auto-filled!');
-    }
-  }
-
   // Calculate GST
   const amountNum = parseFloat(amount) || 0;
-  const gstCalculation = amountNum > 0 ? calculateGST(amountNum, gstRate) : {
-    baseAmount: 0,
-    gstRate,
-    gstAmount: 0,
-    totalAmount: 0
-  };
+  const gstCalculation = useMemo(() => {
+    return amountNum > 0 ? calculateGST(amountNum, gstRate) : {
+      baseAmount: 0,
+      gstRate,
+      gstAmount: 0,
+      totalAmount: 0
+    };
+  }, [amountNum, gstRate]);
 
-  const generateInvoicePDF = async (invoiceData: InvoiceData): Promise<Blob> => {
-    try {
-      const jsPDF = await loadJsPDF();
-      const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 20;
-    let yPos = margin;
 
-    // Header - Company Details
-    doc.setFontSize(18);
-    doc.setTextColor(42, 103, 178); // Tally Sky Blue
-    doc.text(companySettings?.businessName || 'DigitalMuneem', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 8;
-
-    if (companySettings?.address) {
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      doc.text(companySettings.address, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 5;
-    }
-
-    if (companySettings?.gstin) {
-      doc.setFontSize(9);
-      doc.text(`GSTIN: ${companySettings.gstin}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 5;
-    }
-
-    yPos += 5;
-
-    // Invoice Title
-    doc.setFontSize(16);
-    doc.setTextColor(0, 0, 0);
-    doc.text('TAX INVOICE', margin, yPos);
-    yPos += 10;
-
-    // Invoice Details
-    doc.setFontSize(10);
-    doc.text(`Invoice No: ${invoiceData.invoiceNumber}`, margin, yPos);
-    doc.text(`Date: ${formatDate(invoiceData.date)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 8;
-
-    // Customer Details
-    doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
-    doc.text('Bill To:', margin, yPos);
-    yPos += 6;
-    doc.setFont(undefined, 'normal');
-    doc.text(invoiceData.customerName, margin, yPos);
-    yPos += 5;
-    doc.text(`Phone: ${invoiceData.customerPhone}`, margin, yPos);
-    yPos += 10;
-
-    // Line Items Table Header
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(10);
-    doc.text('Description', margin, yPos);
-    doc.text('Amount', pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
-    
-    // Line
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 5;
-
-    // Item
-    doc.setFont(undefined, 'normal');
-    doc.text(invoiceData.description || 'Invoice', margin, yPos);
-    doc.text(formatCurrency(invoiceData.amount), pageWidth - margin, yPos, { align: 'right' });
-    yPos += 8;
-
-    // Totals
-    const totalsX = pageWidth - margin - 60;
-    doc.setFontSize(9);
-    doc.text('Subtotal:', totalsX, yPos);
-    doc.text(formatCurrency(invoiceData.amount), pageWidth - margin, yPos, { align: 'right' });
-    yPos += 5;
-
-    doc.text(`GST (${invoiceData.gstRate}%):`, totalsX, yPos);
-    doc.text(formatCurrency(invoiceData.gstAmount), pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
-
-    // Total Line
-    doc.setDrawColor(0, 0, 0);
-    doc.line(totalsX, yPos, pageWidth - margin, yPos);
-    yPos += 6;
-
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(11);
-    doc.text('Total Amount:', totalsX, yPos);
-    doc.text(formatCurrency(invoiceData.totalAmount), pageWidth - margin, yPos, { align: 'right' });
-    yPos += 10;
-    
-    // Footer
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
-    doc.text('Generated by DigitalMuneem Accounting Solutions', pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    
-    return doc.output('blob');
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      throw new Error('Failed to generate PDF. Please try again.');
-    }
-  };
 
   const handleShare = async () => {
     // Validation
@@ -561,13 +479,13 @@ export function WhatsAppShare() {
       return;
     }
 
-    setLoading(true);
+    setShareStatus('generating');
     try {
       // Recalculate amount to ensure we have the latest value
       const currentAmountNum = parseFloat(amount) || 0;
       if (currentAmountNum <= 0) {
         toast.error('Please enter valid amount');
-        setLoading(false);
+        setShareStatus('idle');
         return;
       }
       
@@ -578,7 +496,7 @@ export function WhatsAppShare() {
       // Validate invoice number format
       if (!invoiceNumber || !invoiceNumber.trim()) {
         toast.error('Invalid invoice number. Please refresh the page.');
-        setLoading(false);
+        setShareStatus('idle');
         return;
       }
       const invoiceNumToUse = invoiceNumber.trim();
@@ -610,65 +528,42 @@ export function WhatsAppShare() {
       // Generate PDF - wrap in try-catch
       let pdfBlob: Blob;
       try {
-        pdfBlob = await generateInvoicePDF(invoiceData);
+        pdfBlob = await generateInvoicePDF(invoiceData, companySettings);
       } catch (pdfError) {
         console.error('Failed to generate PDF:', pdfError);
         toast.error('Failed to generate PDF. Please try again.');
-        setLoading(false);
+        setShareStatus('idle');
         return;
       }
       
-      // Commit invoice number ONLY after successful PDF generation
-      commitInvoiceNumber();
+      // Reserve the invoice number from the server atomically (multi-device safe).
+      // Falls back to localStorage if the backend is unreachable.
+      const { invoiceNumber: reservedNumber, source } = await getNextInvoiceNumber();
+      if (source === 'local') {
+        console.warn('Invoice number issued from local fallback — backend unreachable.');
+      }
+      // Update the displayed number to match the reserved one
+      invoiceData.invoiceNumber = reservedNumber;
       
-      // Prepare WhatsApp message
+      // Prepare WhatsApp message text
       const message = `Invoice ${invoiceNumToUse}\n` +
         `Customer: ${invoiceData.customerName}\n` +
         `Amount: ${formatCurrency(invoiceData.totalAmount)}\n` +
-        `Date: ${formatDate(invoiceData.date)}\n` +
-        `\n📄 Invoice PDF is ready. You can attach it manually.`;
+        `Date: ${formatDate(invoiceData.date)}`;
       
-      // Open WhatsApp directly with pre-filled message
-      try {
-        const whatsappUrl = `https://wa.me/91${customerPhone}?text=${encodeURIComponent(message)}`;
-        const whatsappWindow = window.open(whatsappUrl, '_blank');
-        
-        // Check if popup was blocked
-        if (!whatsappWindow || whatsappWindow.closed || typeof whatsappWindow.closed === 'undefined') {
-          toast.warning('Popup blocked. Please allow popups or copy the link manually.');
-          // Fallback: copy link to clipboard
-          try {
-            await navigator.clipboard.writeText(whatsappUrl);
-            toast.info('WhatsApp link copied to clipboard. Paste it in your browser.');
-          } catch (clipboardError) {
-            console.error('Failed to copy to clipboard:', clipboardError);
-          }
-        }
-      } catch (whatsappError) {
-        console.error('Failed to open WhatsApp:', whatsappError);
-        toast.error('Failed to open WhatsApp. Please try again.');
-      }
+      const pdfFileName = `Invoice_${invoiceNumToUse}.pdf`;
       
-      // Download PDF (with error handling)
-      try {
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.download = `Invoice_${invoiceNumToUse}.pdf`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        // Clean up after a delay to ensure download starts
-        setTimeout(() => {
-          URL.revokeObjectURL(pdfUrl);
-        }, 100);
-      } catch (pdfError) {
-        console.error('Failed to download PDF:', pdfError);
-        toast.warning('PDF generated but download failed. You can generate it again.');
-      }
-      
-      toast.success('Invoice processed! WhatsApp opened and PDF downloaded.');
+      await shareWithFallback({
+        pdfBlob,
+        filename: pdfFileName,
+        message,
+        phone: invoiceData.customerPhone,
+        dialCode: country.dialCode,
+        title: `Invoice ${invoiceNumToUse}`
+      }, (method) => {
+        if (method === 'wa_me') setShareStatus('wa_me');
+      });
+      toast.success('Invoice shared successfully!');
 
       // Auto-create ledger entry
       let ledgerEntryId: number | undefined;
@@ -722,7 +617,7 @@ export function WhatsAppShare() {
       setCustomerPhone('');
       setDescription('');
       setAmount('');
-      setInvoiceNumber(getNextInvoiceNumber());
+      setInvoiceNumber(previewNextInvoiceNumber());
       setDate(new Date().toISOString().split('T')[0]);
       setPaymentMethod('cash');
       setShowOTP(false);
@@ -742,13 +637,10 @@ export function WhatsAppShare() {
       console.error('Share error:', error);
       toast.error('Failed to share invoice');
     } finally {
-      setLoading(false);
+      setTimeout(() => setShareStatus('idle'), 1000);
     }
   };
 
-  const filteredSuggestions = customerSuggestions.filter(c => 
-    c.toLowerCase().includes(customerName.toLowerCase())
-  );
 
   return (
     <div className="space-y-6">
@@ -767,8 +659,10 @@ export function WhatsAppShare() {
         </Card>
       )}
 
-      <Card className="p-6 bg-white border shadow-medium">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Main Form Column */}
+        <Card className="p-6 bg-white border shadow-medium">
+          <div className="space-y-6">
           {/* Invoice Information Section */}
       <div className="space-y-4">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Invoice Information</h3>
@@ -813,44 +707,82 @@ export function WhatsAppShare() {
                   <User className="w-4 h-4 text-primary" />
                   Customer Name <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="customerName"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Enter customer name"
-                  className="touch-friendly"
-                  required
-                />
-                {showSuggestions && filteredSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                    {filteredSuggestions.map((name, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSelectSuggestion(name)}
-                        className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
+                <div className="flex w-full relative">
+                  <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCombobox}
+                        className={cn("w-full justify-between touch-friendly bg-white font-normal", !customerName && "text-muted-foreground")}
                       >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        {customerName || "Select or type name..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput 
+                          placeholder="Search contact..." 
+                          value={customerName}
+                          onValueChange={(val) => {
+                            setCustomerName(val);
+                          }}
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            No contact found. 
+                            {customerName && <div className="mt-2 text-xs text-muted-foreground">Will be saved as a new contact.</div>}
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {customerSuggestions.map((contact, idx) => (
+                              <CommandItem
+                                key={idx}
+                                value={contact.name}
+                                onSelect={(currentValue) => {
+                                  handleSelectSuggestion(contact.name);
+                                  setOpenCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    customerName.toLowerCase() === contact.name.toLowerCase() ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span>{contact.name}</span>
+                                  {contact.phone && <span className="text-xs text-muted-foreground">{formatPhoneDisplay(contact.phone, country.dialCode)}</span>}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
               <div>
                 <Label htmlFor="customerPhone" className="flex items-center gap-2 mb-2">
                   <MessageCircle className="w-4 h-4 text-primary" />
                   Phone Number <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="customerPhone"
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => handleCustomerPhoneChange(e.target.value)}
-                  placeholder="9876543210"
-                  className="touch-friendly"
-                  maxLength={10}
-                  required
-                />
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                    +{country.dialCode}
+                  </div>
+                  <Input
+                    id="customerPhone"
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => handleCustomerPhoneChange(e.target.value)}
+                    placeholder="9876543210"
+                    className="touch-friendly pl-12 font-medium"
+                    maxLength={country.maxPhoneLength}
+                    required
+                  />
+                </div>
               </div>
             </div>
         </div>
@@ -956,167 +888,111 @@ export function WhatsAppShare() {
 
             {/* OTP Verification (only for credit) */}
             {paymentMethod === 'credit' && (
-              <Card className="p-4 bg-amber-50/50 border-amber-200">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-amber-600" />
-                    <h4 className="text-sm font-semibold">Customer Consent (OTP Verification)</h4>
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!showOTP && !otpVerified) {
+                      handleRequestOTP();
+                    } else {
+                      setShowOTP(true);
+                    }
+                  }}
+                  variant={otpVerified ? "ghost" : "outline"}
+                  className={cn("w-full touch-friendly transition-all", otpVerified ? "text-green-600 bg-green-50/80 pointer-events-none border border-green-200" : "border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100/80 shadow-sm")}
+                >
+                  {otpVerified ? (
+                    <><Check className="w-5 h-5 mr-2" /> Phone Verified</>
+                  ) : (
+                    <><CreditCard className="w-5 h-5 mr-2" /> Verify Phone for Credit</>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {/* Frictionless OTP Modal */}
+            <Dialog open={showOTP && !otpVerified} onOpenChange={setShowOTP}>
+              <DialogContent className="sm:max-w-md bg-white border-slate-200 p-6 shadow-strong">
+                <DialogHeader className="mb-4">
+                  <DialogTitle className="text-xl">Verify Phone Number</DialogTitle>
+                  <DialogDescription className="text-sm mt-1.5">
+                    Enter the 6-digit code sent to <span className="font-semibold text-slate-800">+{country.dialCode} {customerPhone}</span>
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex flex-col items-center justify-center space-y-8">
+                  {showOTPInUI && generatedOTP && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg w-full">
+                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-widest mb-1">
+                        Backup OTP (WhatsApp popup blocked)
+                      </p>
+                      <p className="text-xs text-amber-600 mb-3">
+                        Share this code with the customer verbally or via WhatsApp. Ask them to read it back to you before entering.
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xl font-mono font-bold text-amber-900 tracking-wider">
+                          {generatedOTP}
+                        </p>
+                        <Button type="button" variant="outline" size="sm" onClick={handleCopyOTP} className="h-9 border-amber-300">
+                          {otpCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col items-center">
+                    <InputOTP
+                      maxLength={6}
+                      value={otp}
+                      onChange={(value) => {
+                        setOtp(value);
+                        if (value.length === 6) {
+                          setTimeout(() => handleVerifyOTP(value), 50);
+                        }
+                      }}
+                      disabled={otpVerified || otpTimer.isExpired}
+                      autoFocus
+                      className="gap-2"
+                    >
+                      <InputOTPGroup className="gap-2">
+                        <InputOTPSlot index={0} className="w-12 h-14 text-lg border-2 border-slate-200 focus:border-primary shadow-sm" />
+                        <InputOTPSlot index={1} className="w-12 h-14 text-lg border-2 border-slate-200 focus:border-primary shadow-sm" />
+                        <InputOTPSlot index={2} className="w-12 h-14 text-lg border-2 border-slate-200 focus:border-primary shadow-sm" />
+                        <InputOTPSlot index={3} className="w-12 h-14 text-lg border-2 border-slate-200 focus:border-primary shadow-sm" />
+                        <InputOTPSlot index={4} className="w-12 h-14 text-lg border-2 border-slate-200 focus:border-primary shadow-sm" />
+                        <InputOTPSlot index={5} className="w-12 h-14 text-lg border-2 border-slate-200 focus:border-primary shadow-sm" />
+                      </InputOTPGroup>
+                    </InputOTP>
+                    
+                    {otpTimer.isExpired ? (
+                       <p className="mt-4 text-sm text-destructive font-medium">OTP has expired. Please resend.</p>
+                    ) : ( 
+                       <p className="mt-4 text-sm text-slate-500 font-medium">Auto-verifies when complete</p>
+                    )}
                   </div>
-                  
-                  {!showOTP ? (
+
+                  <div className="flex gap-3 w-full">
+                    <Button
+                      type="button"
+                      onClick={() => setShowOTP(false)}
+                      variant="ghost"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
                     <Button
                       type="button"
                       onClick={handleRequestOTP}
-                      variant="outline"
-                      className="w-full touch-friendly"
+                      variant="secondary"
+                      className="flex-1 font-semibold"
+                      disabled={otpTimer.isActive}
                     >
-                      Send OTP via WhatsApp
+                      {otpTimer.isActive ? `Resend code in ${otpTimer.label}` : 'Resend Code'}
                     </Button>
-                  ) : (
-                    <div className="space-y-3">
-                      {otpSent && !showOTPInUI && (
-                        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                          <p className="text-sm text-green-800 font-semibold">
-                            ✅ WhatsApp opened for: {customerPhone}
-                          </p>
-                          <p className="text-xs text-green-700 mt-2 font-medium">
-                            ⚠️ Important: Click "SEND" in WhatsApp to deliver the OTP message
-                          </p>
-                          <p className="text-xs text-green-600 mt-1">
-                            The message is pre-filled - you just need to click Send
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowOTPInUI(true)}
-                            className="mt-2 w-full text-xs"
-                          >
-                            View OTP (if WhatsApp didn't work)
-                          </Button>
-                        </div>
-                      )}
-                      
-                      {showOTPInUI && generatedOTP && (
-                        <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-semibold text-blue-900">
-                              Your OTP Code
-                            </p>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCopyOTP}
-                              className="h-8 px-2"
-                            >
-                              {otpCopied ? (
-                                <>
-                                  <Check className="w-4 h-4 mr-1 text-green-600" />
-                                  <span className="text-xs text-green-600">Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-4 h-4 mr-1" />
-                                  <span className="text-xs">Copy</span>
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 bg-white border-2 border-blue-400 rounded-lg p-3">
-                              <p className="text-2xl font-mono font-bold text-center text-blue-900 tracking-wider">
-                                {generatedOTP}
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleAutoFillOTP}
-                              className="h-10 px-4 whitespace-nowrap"
-                            >
-                              Auto-Fill
-                            </Button>
-                          </div>
-                          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                            <p className="font-medium">📱 To send via WhatsApp:</p>
-                            <p className="mt-1">1. Copy this OTP or click Auto-Fill</p>
-                            <p>2. Open WhatsApp and send to: <strong>{customerPhone}</strong></p>
-                            <p>3. Or use the WhatsApp link that was opened</p>
-                          </div>
-                          <p className="text-xs text-blue-700 mt-2 text-center">
-                            This OTP is valid for 10 minutes. Enter it in the field below or click Auto-Fill.
-                          </p>
-                        </div>
-                      )}
-          <div>
-                        <Label htmlFor="otp" className="mb-2 block">Enter 6-digit OTP</Label>
-                        <InputOTP
-                          maxLength={6}
-                          value={otp}
-                          onChange={(value) => setOtp(value)}
-                          disabled={otpVerified}
-                        >
-                          <InputOTPGroup>
-                            <InputOTPSlot index={0} />
-                            <InputOTPSlot index={1} />
-                            <InputOTPSlot index={2} />
-                            <InputOTPSlot index={3} />
-                            <InputOTPSlot index={4} />
-                            <InputOTPSlot index={5} />
-                          </InputOTPGroup>
-                        </InputOTP>
-                      </div>
-                      
-                      {otpVerified ? (
-                        <div className="flex items-center gap-2 text-sm text-green-600">
-                          <span className="font-medium">✓ OTP Verified</span>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            onClick={handleVerifyOTP}
-                            disabled={otp.length !== 6}
-                            className="flex-1 touch-friendly"
-                          >
-                            Verify OTP
-                          </Button>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setShowOTP(false);
-                              setOtp('');
-                              setOtpVerified(false);
-                              setGeneratedOTP('');
-                              setOtpSent(false);
-                              setShowOTPInUI(false);
-                              setOtpCopied(false);
-                              if (customerPhone) {
-                                sessionStorage.removeItem(`otp_${customerPhone}`);
-                              }
-                            }}
-                            variant="outline"
-                            className="flex-1 touch-friendly"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="button"
-                            onClick={handleRequestOTP}
-                            variant="outline"
-                            className="flex-1 touch-friendly"
-                          >
-                            Resend OTP
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </Card>
-            )}
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Divider */}
@@ -1149,16 +1025,33 @@ export function WhatsAppShare() {
           <div className="pt-2">
         <Button
           onClick={handleShare}
-              disabled={loading || !customerName.trim() || !customerPhone || customerPhone.length !== 10 || !amount || !description.trim() || (paymentMethod === 'credit' && !otpVerified)}
-              className="w-full touch-friendly bg-primary hover:bg-primary/90 text-white shadow-medium hover:shadow-glow transition-all"
+          disabled={shareStatus !== 'idle' || !customerName.trim() || !customerPhone || customerPhone.length !== 10 || !amount || !description.trim() || (paymentMethod === 'credit' && !otpVerified)}
+          className="w-full touch-friendly bg-primary hover:bg-primary/90 text-white shadow-medium hover:shadow-glow transition-all"
           size="lg"
         >
-              <MessageCircle className="w-4 h-4 mr-2" />
-              {loading ? 'Sharing...' : paymentMethod === 'credit' ? 'Generate Invoice & Share' : 'Generate & Share via WhatsApp'}
+          <MessageCircle className="w-4 h-4 mr-2" />
+          {shareStatus === 'idle' && (paymentMethod === 'credit' ? 'Generate Invoice & Share' : 'Generate & Share via WhatsApp')}
+          {shareStatus === 'generating' && 'Generating Pristine PDF...'}
+          {shareStatus === 'wa_me' && 'Opening WhatsApp...'}
         </Button>
           </div>
+          </div>
+        </Card>
+
+        {/* Live Invoice Preview Column */}
+        <LiveInvoicePreview
+          companySettings={companySettings}
+          invoiceNumber={invoiceNumber}
+          date={date}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          country={country}
+          description={description}
+          amountNum={amountNum}
+          gstRate={gstRate}
+          gstCalculation={gstCalculation}
+        />
       </div>
-    </Card>
     </div>
   );
 }

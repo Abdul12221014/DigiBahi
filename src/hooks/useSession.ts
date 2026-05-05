@@ -13,7 +13,7 @@ export function useSession() {
     })();
     const tick = async () => {
       const s = await sessionService.refresh();
-      if (s) { setActive(true); setExpiresAt(s.expires_at); }
+      if (s) { setActive(true); setExpiresAt(s.expiresAt); }
       // refresh every 10 minutes
       timer = window.setTimeout(tick, 10 * 60 * 1000);
     };

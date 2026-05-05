@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import ws from '@/services/ws.service';
+import ws, { offWSMessage } from '@/services/ws.service';
 import { toast } from 'sonner';
 
 interface UseLedgerSyncCallbacks {
@@ -64,11 +64,9 @@ export function useLedgerSync(callbacks: UseLedgerSyncCallbacks) {
       }
     };
 
-    // Register WebSocket message handler
     ws.onWSMessage(handler);
 
-    // Cleanup: No specific cleanup needed as ws.service handles reconnection
-    // The handler will be called for new messages automatically
-  }, []); // Empty dependency array - setup once
+    return () => { offWSMessage(handler); };
+  }, []);
 }
 

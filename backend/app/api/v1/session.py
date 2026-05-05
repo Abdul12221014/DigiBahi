@@ -34,6 +34,9 @@ def session_refresh(session_token: str, db: DBSession = Depends(get_db)):
     s = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
     if not s:
         raise HTTPException(status_code=401, detail="Invalid session")
+    if s.expires_at < datetime.utcnow():
+        db.delete(s); db.commit()
+        raise HTTPException(status_code=401, detail="Session expired")
     s.expires_at = datetime.utcnow() + timedelta(minutes=SESSION_TTL_MIN)
     db.add(s); db.commit(); db.refresh(s)
     return {"session_token": s.session_token, "expires_at": s.expires_at.isoformat()}

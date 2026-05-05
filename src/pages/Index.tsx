@@ -7,6 +7,7 @@ import { EntryForm } from '@/components/forms/EntryForm';
 import { InsightsDashboard } from '@/features/ai-analytics';
 import { LearningPanel, useLearningSync } from '@/features/ai-learning';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { WhatsAppFloatingButton } from '@/components/WhatsAppFloatingButton';
 
 // Lazy load entire pen input wrapper to prevent ANY module evaluation on app start
 const PenInputWrapper = lazy(() => import('@/features/pen-input/PenInputWrapper'));
@@ -91,21 +92,21 @@ const Index = () => {
       setSelectedFormat(savedFormat);
     }
 
-    // Developer Auto-Login: Ensure a user exists in session storage for local testing
-    // This allows saving transactions when running locally without a separate login step
-    import('@/lib/auth').then(({ getCurrentUser, setCurrentUser }) => {
-      if (!getCurrentUser()) {
-        setCurrentUser({
-          id: 'dev-admin',
-          username: 'admin',
-          name: 'Administrator',
-          role: 'admin',
-          pinHash: '', // Not needed for dev session
-          is_active: true
-        });
-        console.info('🛠️ Developer auto-login active');
-      }
-    });
+    // Developer Auto-Login: only active in local dev builds, never in production
+    if (import.meta.env.DEV) {
+      import('@/lib/auth').then(({ getCurrentUser, setCurrentUser }) => {
+        if (!getCurrentUser()) {
+          setCurrentUser({
+            id: -1,
+            username: 'admin',
+            role: 'owner',
+            pinHash: '',
+            createdAt: new Date()
+          });
+          console.info('🛠️ Developer auto-login active');
+        }
+      });
+    }
   }, []);
 
   const handleEntrySuccess = () => {
@@ -366,6 +367,11 @@ const Index = () => {
           </Tabs>
         )}
       </main>
+
+      {/* WhatsApp Floating Chat Button */}
+      {activeTab !== 'whatsapp' && (
+        <WhatsAppFloatingButton onNavigateToWhatsApp={() => setActiveTab('whatsapp')} />
+      )}
 
       {/* Footer */}
       <footer className="border-t mt-12 py-8 bg-card shadow-soft">

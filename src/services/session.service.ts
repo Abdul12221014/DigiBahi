@@ -29,13 +29,14 @@ export const sessionService = {
     await saveSession({ token: data.session_token, expiresAt: data.expires_at });
     return data;
   },
-  async refresh() {
+  async refresh(): Promise<{ token: string; expiresAt: string } | null> {
     const s = await loadSession(); if (!s) return null;
     const res = await fetch('/api/v1/session/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_token: s.token }) });
     if (!res.ok) return null;
     const data = await res.json();
-    await saveSession({ token: data.session_token, expiresAt: data.expires_at });
-    return data;
+    const session = { token: data.session_token, expiresAt: data.expires_at };
+    await saveSession(session);
+    return session;
   },
   async logout() {
     const s = await loadSession(); if (!s) return;
