@@ -128,6 +128,21 @@ class OtpSession(Base):
 
 
 # ========================================
+# UPI RECONCILIATION LOG (migrated from separate SQLite file)
+# ========================================
+
+class UpiReconcileLog(Base):
+    __tablename__ = "upi_reconcile_log"
+    id = Column(String, primary_key=True, index=True)
+    txn_ref = Column(String, nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    upi_id = Column(String, nullable=False)
+    timestamp = Column(Integer, nullable=False)
+    status = Column(String, default="reconciled", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ========================================
 # INVOICE NUMBER SEQUENCE (server-side, multi-device safe)
 # ========================================
 

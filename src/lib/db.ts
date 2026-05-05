@@ -191,7 +191,44 @@ export class DigBahiDB extends Dexie {
       creditEntries:    '++id, invoiceNumber, customerPhone, status',
       analyticsEvents:  '++id, name, synced, timestamp, session_id',
     }).upgrade(async () => {
-      console.log('🚀 v8: Analytics events table + sync-ready indexes added');
+      console.log('v8: Analytics events table + sync-ready indexes added');
+    });
+
+    // Version 9: Backfill deprecated userId→created_by and createdAt→created_at on
+    // existing ledger rows so they pass backend sync type checks.
+    // Adds created_by to the index so user-isolation filtering is fast.
+    this.version(9).stores({
+      users:            '++id, username, role',
+      ledger:           '++id, date, type, party_name, customer_id, synced_at, created_by',
+      gstRecords:       '++id, ledgerId, status, createdAt',
+      upiIntents:       'id, upiId, status, createdAt',
+      syncQueue:        'id, txnRef, timestamp',
+      items:            '++id,nameKey,sku,gstRate,unit,createdAt',
+      stockTxns:        '++id,itemId,date,refLedgerId,type',
+      companySettings:  '++id',
+      customerContacts: '++id, phone, name, synced_at, remote_id',
+      creditEntries:    '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:  '++id, name, synced, timestamp, session_id',
+    }).upgrade(async (tx) => {
+      // Migrate all ledger rows that still have the legacy fields
+      await tx.table('ledger').toCollection().modify((entry: any) => {
+        // userId → created_by
+        if (entry.created_by == null && entry.userId != null) {
+          entry.created_by = entry.userId;
+        }
+        // createdAt (Date) → created_at (ISO string)
+        if (!entry.created_at && entry.createdAt) {
+          entry.created_at =
+            entry.createdAt instanceof Date
+              ? entry.createdAt.toISOString()
+              : String(entry.createdAt);
+        }
+        // Ensure is_active is set (old rows lack it)
+        if (entry.is_active == null) {
+          entry.is_active = true;
+        }
+      });
+      console.log('v9: Backfilled userId→created_by and createdAt→created_at on ledger rows');
     });
   }
 }

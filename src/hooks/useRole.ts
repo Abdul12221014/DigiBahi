@@ -1,17 +1,31 @@
-// Minimal role reader; expects role cached locally (e.g., by auth service)
-export function getUserRole(): string {
-  try {
-    const cached = localStorage.getItem('digbahi_role');
-    if (cached) return cached;
-  } catch { /* localStorage may be unavailable in some environments — safe to ignore */ }
-  return 'admin'; // default during development; replace with real decode
+import { getCurrentUser } from '@/lib/auth';
+
+type Role = 'owner' | 'accountant' | 'employee';
+
+/**
+ * Read the current user's role from the authenticated session.
+ * Returns null when no user is logged in — callers must handle this.
+ * Never defaults to a privileged role.
+ */
+export function getUserRole(): Role | null {
+  const user = getCurrentUser();
+  if (!user) return null;
+
+  const role = (user as any).role as Role | undefined;
+  if (role === 'owner' || role === 'accountant' || role === 'employee') {
+    return role;
+  }
+  return null;
 }
 
-export function useRole(requiredRoles: string[]): boolean {
+/**
+ * Returns true only when the logged-in user holds one of the required roles.
+ * Returns false (deny) when not authenticated.
+ */
+export function useRole(requiredRoles: Role[]): boolean {
   const role = getUserRole();
+  if (!role) return false;
   return requiredRoles.includes(role);
 }
 
 export default useRole;
-
-

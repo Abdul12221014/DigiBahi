@@ -86,8 +86,22 @@ export interface AnalyticsParams {
   type?: string;
 }
 
+function getSessionHeaders(): Record<string, string> {
+  try {
+    const user = sessionStorage.getItem('currentUser');
+    if (user) {
+      const parsed = JSON.parse(user);
+      if (parsed?.sessionToken) {
+        return { 'X-Session-Token': parsed.sessionToken };
+      }
+    }
+  } catch { /* sessionStorage unavailable */ }
+  return {};
+}
+
 /**
- * Abortable fetch helper with timeout
+ * Abortable fetch helper with timeout.
+ * Automatically injects X-Session-Token from sessionStorage.
  */
 async function fetchJSON<T>(
   url: string,
@@ -96,13 +110,14 @@ async function fetchJSON<T>(
 ): Promise<T> {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
-  
+
   try {
     const res = await fetch(url, {
       ...init,
       signal: ctrl.signal,
       headers: {
         'Content-Type': 'application/json',
+        ...getSessionHeaders(),
         ...(init.headers || {}),
       },
     });

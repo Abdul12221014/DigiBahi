@@ -292,16 +292,51 @@ export default class OCRHybridService {
   }
 
   /**
-   * Recognize text from canvas
-   * Routes all OCR requests to the backend Google Cloud Vision endpoint
-   * for higher accuracy and consistency across all platforms.
+   * Recognize text from canvas.
+   * Primary: Google Cloud Vision via backend.
+   * Fallback: Tesseract.js web worker (local, offline-capable).
    */
   async recognizeCanvas(
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    console.log('[OCRHybridService] Routing to Cloud Backend OCR');
-    return this.recognizeWithBackend(canvasEl, options);
+    try {
+      console.log('[OCRHybridService] Attempting backend OCR (Cloud Vision)');
+      return await this.recognizeWithBackend(canvasEl, options);
+    } catch (backendError) {
+      console.warn('[OCRHybridService] Backend OCR failed, falling back to Tesseract.js worker:', backendError);
+      return await this.recognizeWithWorker(canvasEl, options);
+    }
+  }
+
+  /**
+   * Recognize text using the Tesseract.js web worker.
+   * Used as local fallback when the backend is unreachable.
+   */
+  private async recognizeWithWorker(
+    canvasEl: HTMLCanvasElement,
+    options: RecognizeOptions = {}
+  ): Promise<OCRResult[]> {
+    try {
+      // Convert canvas to blob (avoids ImageData cross-thread cloning issues)
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvasEl.toBlob(b => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), 'image/png');
+      });
+
+      const result = await this.sendMessage('recognize', { blob, options });
+      if (!result) return [];
+
+      const allResults: OCRResult[] = [
+        ...result.tesseract.map(r => ({ ...r, id: `tes_${Date.now()}_${Math.random()}`, type: 'tesseract' as const })),
+        ...result.tflite.map(r => ({ ...r, id: `tfl_${Date.now()}_${Math.random()}`, type: 'tflite' as const })),
+      ];
+
+      console.log('[OCRHybridService] Tesseract worker result count:', allResults.length);
+      return allResults;
+    } catch (workerError) {
+      console.error('[OCRHybridService] Tesseract worker also failed:', workerError);
+      throw new Error('Both backend OCR and local fallback failed. Please try again.');
+    }
   }
 
   /**
@@ -396,9 +431,6 @@ export default class OCRHybridService {
       console.log('[OCRHybridService] Backend OCR result:', result);
       return [result];
     } catch (error) {
-      console.error('[OCRHybridService] Backend OCR request failed:', error);
-      // Removed the remote fallback as we are already calling the Cloud API that is much more capable
-      // If it fails, report it back to the UI directly.
       throw error instanceof Error ? error : new Error('Backend OCR request failed');
     }
   }

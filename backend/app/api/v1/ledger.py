@@ -4,16 +4,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, func, case
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from ...db.base import Base, engine, get_db
+from ...db.base import get_db
 from ...db import models
 from ...db import schemas
 from .sync_ws import broadcast
+from ..deps import get_current_session
 
 router = APIRouter(prefix="/api/v1", tags=["Ledger"])
-
-# TODO: Initialize Alembic in Week-2 for proper migrations
-# For now, using Base.metadata.create_all() (temporary)
-Base.metadata.create_all(bind=engine)
 
 def http_error(status: int, code: str, message: str, details: dict = None):
     """Helper for consistent error envelope"""
@@ -27,20 +24,18 @@ def http_error(status: int, code: str, message: str, details: dict = None):
     )
 
 def broadcast_event(event_data: dict):
-    """Helper function to broadcast events in background thread"""
-    import threading
+    """
+    Schedule a WebSocket broadcast on the running event loop.
+    Uses run_coroutine_threadsafe so the broadcast runs on the same loop
+    that uvicorn owns — no new loops, no silent daemon-thread teardown loss.
+    """
     import asyncio
-    
-    def run_broadcast():
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(broadcast(event_data))
-            loop.close()
-        except Exception as e:
-            print(f"Broadcast error (non-critical): {e}")
-    
-    threading.Thread(target=run_broadcast, daemon=True).start()
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(broadcast(event_data), loop)
+    except Exception as e:
+        print(f"Broadcast error (non-critical): {e}")
     
 @router.get("/ledger/entries")
 def get_ledger_entries_alias(
@@ -128,7 +123,7 @@ def get_ledger(
 
 
 @router.post("/ledger", response_model=schemas.LedgerEntryOut)
-def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(get_db)):
+def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Create ledger entry with idempotency support"""
     try:
         # Idempotency check (within transaction)
@@ -215,7 +210,8 @@ def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(
 def update_ledger_entry(
     id: int,
     entry: schemas.LedgerEntryCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session),
 ):
     """Update ledger entry"""
     db_entry = db.query(models.LedgerEntry).filter(
@@ -270,7 +266,7 @@ def update_ledger_entry(
 
 
 @router.delete("/ledger/{id}")
-def delete_ledger_entry(id: int, db: Session = Depends(get_db)):
+def delete_ledger_entry(id: int, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Soft delete ledger entry"""
     db_entry = db.query(models.LedgerEntry).filter(
         models.LedgerEntry.id == id,

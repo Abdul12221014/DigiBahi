@@ -4,8 +4,6 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { Dashboard } from '@/components/layout/Dashboard';
 import { LedgerTable } from '@/components/layout/LedgerTable';
 import { EntryForm } from '@/components/forms/EntryForm';
-import { InsightsDashboard } from '@/features/ai-analytics';
-import { LearningPanel, useLearningSync } from '@/features/ai-learning';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { WhatsAppFloatingButton } from '@/components/WhatsAppFloatingButton';
 
@@ -67,8 +65,6 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedFormat, setSelectedFormat] = useState<LedgerFormatId>('traditional-khata');
   const restoreInputRef = useRef<HTMLInputElement>(null);
-  const learning = useLearningSync();
-
   // Keyboard Shortcuts
   useHotkeys('alt+n, f2', (e) => {
     e.preventDefault();
@@ -311,23 +307,6 @@ const Index = () => {
                 <Reports />
               </Suspense>
             </TabsContent>
-
-            {ENABLE_AI_FEATURES && (
-              <>
-                <TabsContent value="ai-insights">
-                  <InsightsDashboard />
-                </TabsContent>
-
-                <TabsContent value="ai-learning">
-                  <LearningPanel
-                    trainingProgress={learning.trainingProgress}
-                    syncStatus={learning.syncStatus}
-                    onTrainLocally={learning.trainLocally}
-                    onSyncModel={learning.syncModel}
-                  />
-                </TabsContent>
-              </>
-            )}
 
             {ENABLE_UPI && (
               <TabsContent value="upi">

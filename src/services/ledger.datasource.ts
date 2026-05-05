@@ -8,8 +8,14 @@ import { db, LedgerEntry } from '@/lib/db';
 import * as ledgerApi from './ledger.api';
 import { toast } from 'sonner';
 import { computeTotals, computeGSTTotals } from '@/lib/ledger.metrics';
+import { getCurrentUser } from '@/lib/auth';
 
 const ENABLE_LEDGER_API = import.meta.env.VITE_ENABLE_LEDGER_API === 'true';
+
+/** Returns the current user's numeric id, or null when not logged in. */
+function currentUserId(): number | null {
+  return (getCurrentUser() as any)?.id ?? null;
+}
 
 export interface LedgerListResult {
   items: LedgerEntry[];
@@ -32,13 +38,24 @@ export interface LedgerDataSource {
 const localDataSource: LedgerDataSource = {
   async list(params = {}) {
     let query = db.ledger.orderBy('date').reverse();
-    
+
     if (params.type) {
       query = query.filter(entry => entry.type === params.type);
     }
-    
-    const all = await query.toArray();
-    
+
+    const userId = currentUserId();
+    const all = (await query.toArray()).filter(entry => {
+      // Exclude soft-deleted entries
+      if (entry.is_active === false) return false;
+      // User isolation: only return entries belonging to the current user.
+      // Entries with no created_by (legacy rows) are shown to all users on
+      // single-device setups; they'll be backfilled by the v9 migration.
+      if (userId !== null && entry.created_by != null && entry.created_by !== userId) {
+        return false;
+      }
+      return true;
+    });
+
     // Client-side search
     let filtered = all;
     if (params.search) {
@@ -83,6 +100,7 @@ const localDataSource: LedgerDataSource = {
   async create(entry) {
     const newEntry: LedgerEntry = {
       ...entry,
+      created_by: currentUserId() ?? entry.created_by ?? null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       is_active: true,

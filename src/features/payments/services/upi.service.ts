@@ -128,13 +128,10 @@ export function validateUPIId(upiId: string): { valid: boolean; error?: string }
     /^[a-zA-Z0-9._-]+@okhdfcbank$/,      // HDFC Bank
     /^[a-zA-Z0-9._-]+@okicici$/,         // ICICI Bank
     /^[a-zA-Z0-9._-]+@oksbi$/,           // SBI
-    /^[a-zA-Z0-9._-]+@okbob$/,           // Bank of Baroda
+    /^[a-zA-Z0-9._-]+@okbob$/,            // Bank of Baroda
     /^[a-zA-Z0-9._-]+@okkotak$/,          // Kotak Bank
     /^[a-zA-Z0-9._-]+@okunionbank$/,      // Union Bank
     /^[a-zA-Z0-9._-]+@okpnb$/,            // Punjab National Bank
-    /^[a-zA-Z0-9._-]+@okaxis$/,           // Axis Bank
-    /^[a-zA-Z0-9._-]+@okbob$/,           // Bank of Baroda
-    /^[a-zA-Z0-9._-]+@okunionbank$/       // Union Bank
   ];
   
   const isValid = patterns.some(pattern => pattern.test(trimmed));

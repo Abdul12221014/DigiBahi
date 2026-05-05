@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from .db.base import Base, engine
 from .api.v1.health import router as health_router
 from .api.v1.ledger import router as ledger_router
 from .api.v1.sync import router as sync_router
@@ -24,7 +26,16 @@ except ImportError as e:
     federated_router = None
     FEDERATED_AVAILABLE = False
 
-app = FastAPI(title="DigBahi Local API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create all tables once at startup — idempotent, safe on existing schemas.
+    # Route files no longer call create_all() individually.
+    import app.db.models  # ensure all model classes are imported before create_all
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="DigBahi Local API", lifespan=lifespan)
 
 # Add CORS middleware - Allow specific origins for security and LAN access
 import os

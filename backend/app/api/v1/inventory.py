@@ -7,7 +7,8 @@ from datetime import datetime
 from ...db.base import get_db
 from ...db import models
 from ...db import schemas
-from .sync_ws import broadcast  # Import broadcast for WebSocket events
+from .sync_ws import broadcast
+from ..deps import get_current_session
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["Inventory"])
 
@@ -18,20 +19,14 @@ def normalize_name(name: str) -> str:
 
 
 def broadcast_event(event_data: dict):
-    """Helper function to broadcast events in background thread"""
-    import threading
+    """Schedule a WS broadcast on uvicorn's running event loop."""
     import asyncio
-    
-    def run_broadcast():
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(broadcast(event_data))
-            loop.close()
-        except Exception as e:
-            print(f"Broadcast error (non-critical): {e}")
-    
-    threading.Thread(target=run_broadcast, daemon=True).start()
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(broadcast(event_data), loop)
+    except Exception as e:
+        print(f"Broadcast error (non-critical): {e}")
 
 
 # ---------------------------
@@ -60,7 +55,7 @@ def get_items(
 
 
 @router.post("/items", response_model=schemas.InventoryItemOut)
-def create_item(item: schemas.InventoryItemCreate, db: Session = Depends(get_db)):
+def create_item(item: schemas.InventoryItemCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Create new inventory item"""
     try:
         # Check for duplicate SKU
@@ -162,7 +157,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/items/{item_id}", response_model=schemas.InventoryItemOut)
-def update_item(item_id: int, item: schemas.InventoryItemCreate, db: Session = Depends(get_db)):
+def update_item(item_id: int, item: schemas.InventoryItemCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Update inventory item"""
     db_item = db.query(models.InventoryItem).filter(
         models.InventoryItem.id == item_id,
@@ -213,7 +208,7 @@ def update_item(item_id: int, item: schemas.InventoryItemCreate, db: Session = D
 
 
 @router.delete("/items/{item_id}")
-def delete_item(item_id: int, db: Session = Depends(get_db)):
+def delete_item(item_id: int, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Soft delete inventory item"""
     try:
         item = db.query(models.InventoryItem).filter(
@@ -276,7 +271,7 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 # ---------------------------
 
 @router.post("/stock-transactions", response_model=schemas.StockTransactionOut)
-def create_stock_transaction(txn: schemas.StockTransactionCreate, db: Session = Depends(get_db)):
+def create_stock_transaction(txn: schemas.StockTransactionCreate, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Create stock transaction"""
     # Validate item exists
     item = db.query(models.InventoryItem).filter(
