@@ -235,24 +235,34 @@ export class DigBahiDB extends Dexie {
 
 export const db = new DigBahiDB();
 
-// Initialize with demo user if empty
+/**
+ * Initialize DB schema only. Does NOT create a default user.
+ * On first run (no users), the app shows a setup wizard where the owner
+ * chooses their own PIN — no well-known default PIN is ever written to disk.
+ */
 export async function initializeDB() {
-  const userCount = await db.users.count();
-  if (userCount === 0) {
-    // Demo PIN: "1234" - SHA-256 hash
-    const encoder = new TextEncoder();
-    const data = encoder.encode('1234');
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const pinHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    await db.users.add({
-      username: 'demo',
-      pinHash,
-      role: 'owner',
-      createdAt: new Date()
-    });
-  }
+  // Schema is created by Dexie versioning above.
+  // No auto-user creation — prevents "PIN 1234" from shipping to production kiosks.
+}
+
+/** Returns true if no users exist yet — triggers first-run setup UI. */
+export async function isFirstRun(): Promise<boolean> {
+  return (await db.users.count()) === 0;
+}
+
+/** Create the owner account during first-run setup. */
+export async function createOwnerAccount(username: string, pin: string): Promise<void> {
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(pin));
+  const pinHash = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  await db.users.add({
+    username,
+    pinHash,
+    role: 'owner',
+    createdAt: new Date(),
+  });
 }
 
 // UPI Intent CRUD operations

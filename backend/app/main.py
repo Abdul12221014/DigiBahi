@@ -1,7 +1,29 @@
+import os
+import sys
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from .db.base import Base, engine
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# ─── Startup env validation ──────────────────────────────────────────────────
+_REQUIRED_ENV = ["CORS_ORIGINS"]
+_missing = [v for v in _REQUIRED_ENV if not os.getenv(v)]
+if _missing:
+    logger.error("FATAL: missing required environment variables: %s", _missing)
+    sys.exit(1)
+
+# Warn (don't abort) for optional but important vars
+_OPTIONAL_WARN = ["WHATSAPP_ACCESS_TOKEN", "GOOGLE_CREDENTIALS_JSON"]
+for _var in _OPTIONAL_WARN:
+    if not os.getenv(_var):
+        logger.warning("Optional env var %s not set — related features will be degraded", _var)
 from .api.v1.health import router as health_router
 from .api.v1.ledger import router as ledger_router
 from .api.v1.sync import router as sync_router
@@ -22,7 +44,7 @@ try:
     from .ai.federated.routes import router as federated_router
     FEDERATED_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️  Federated learning module not available: {e}")
+    logger.warning("Federated learning module not available: %s", e)
     federated_router = None
     FEDERATED_AVAILABLE = False
 
@@ -37,22 +59,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DigBahi Local API", lifespan=lifespan)
 
-# Add CORS middleware - Allow specific origins for security and LAN access
-import os
-
-cors_env = os.getenv("CORS_ORIGINS")
-if cors_env:
-    origins = [o.strip() for o in cors_env.split(",")]
-else:
-    # Restrict to local dev origins by default; set CORS_ORIGINS env var for LAN/production access
-    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+origins = [o.strip() for o in cors_env.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Session-Token", "Authorization"],
 )
 app.include_router(health_router)
 app.include_router(ledger_router)

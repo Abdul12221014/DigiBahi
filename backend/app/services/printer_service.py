@@ -1,7 +1,10 @@
+import logging
 import serial
 import os
 import base64
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 class SerialPrinter:
     def __init__(self):
@@ -29,13 +32,13 @@ class SerialPrinter:
             )
             return True
         except serial.SerialException as e:
-            print(f"Failed to connect to printer on {self.port}: {e}")
+            logger.warning("Failed to connect to printer on %s: %s", self.port, e)
             return False
 
     def print_raw(self, base64_data: str) -> bool:
         """Decode base64 data and send bytes to the printer."""
         if not self._port_exists():
-            print(f"Serial port {self.port} not available on this platform (cloud deployment?).")
+            logger.info("Serial port %s not available — cloud deployment, WebUSB handles printing", self.port)
             return False
         try:
             if not self.connect():
@@ -47,7 +50,7 @@ class SerialPrinter:
                 return True
             return False
         except Exception as e:
-            print(f"Print error: {e}")
+            logger.error("Print error: %s", e)
             return False
 
     def status(self) -> dict:

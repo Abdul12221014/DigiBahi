@@ -47,6 +47,8 @@ export function WhatsAppShare() {
   const [otpSent, setOtpSent] = useState(false);
   const [showOTPInUI, setShowOTPInUI] = useState(false);
   const [otpCopied, setOtpCopied] = useState(false);
+  const [localOtpAttempts, setLocalOtpAttempts] = useState(0);
+  const LOCAL_OTP_MAX_ATTEMPTS = 5;
 
   const otpTimer = useOTPTimer(60);
   const country = getDefaultCountry();
@@ -334,6 +336,16 @@ export function WhatsAppShare() {
       return;
     }
 
+    // Guard client-side fallback brute force
+    if (localOtpAttempts >= LOCAL_OTP_MAX_ATTEMPTS) {
+      toast.error('Too many incorrect attempts. Please request a new OTP.');
+      setShowOTP(false);
+      setOtp('');
+      setGeneratedOTP('');
+      sessionStorage.removeItem(`otp_${customerPhone}`);
+      return;
+    }
+
     // Try backend API verification first
     try {
       const result = await whatsappAPIService.verifyOTP(customerPhone, otpValue);
@@ -374,21 +386,25 @@ export function WhatsAppShare() {
           // Verify OTP
           if (otpValue === storedOTP || otpValue === generatedOTP) {
             setOtpVerified(true);
+            setLocalOtpAttempts(0);
             otpTimer.reset();
             analytics.track('otp_verified', { method: 'fallback_session' });
             toast.success('OTP verified successfully');
             sessionStorage.removeItem(`otp_${customerPhone}`);
           } else {
+            setLocalOtpAttempts(a => a + 1);
             toast.error('Invalid OTP. Please check and try again.');
           }
         } catch (error) {
           // Fallback: verify against generatedOTP if sessionStorage fails
           if (otpValue === generatedOTP) {
             setOtpVerified(true);
+            setLocalOtpAttempts(0);
             otpTimer.reset();
             analytics.track('otp_verified', { method: 'fallback_generated' });
             toast.success('OTP verified successfully');
           } else {
+            setLocalOtpAttempts(a => a + 1);
             toast.error('Invalid OTP. Please check and try again.');
           }
         }
@@ -396,10 +412,12 @@ export function WhatsAppShare() {
         // Fallback: verify against generatedOTP
         if (otpValue === generatedOTP) {
           setOtpVerified(true);
+          setLocalOtpAttempts(0);
           otpTimer.reset();
           analytics.track('otp_verified', { method: 'fallback_generated_no_session' });
           toast.success('OTP verified successfully');
         } else {
+          setLocalOtpAttempts(a => a + 1);
           toast.error('Invalid OTP. Please request a new OTP.');
         }
       }

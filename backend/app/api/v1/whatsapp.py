@@ -2,6 +2,7 @@
 WhatsApp Business API Endpoints
 Handles OTP, invoice, and report sending via WhatsApp
 """
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ from ...db import models
 from ..deps import get_current_session
 from ...db.models import Session as SessionModel
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/whatsapp", tags=["whatsapp"])
 
 # Initialize WhatsApp service (None when credentials not configured)
@@ -25,7 +27,7 @@ try:
     whatsapp_service = WhatsAppService()
 except ValueError as e:
     whatsapp_service = None
-    print(f"Warning: WhatsApp service not initialized: {e}")
+    logger.warning("WhatsApp service not initialized: %s", e)
 
 
 # ─── Constants ────────────────────────────────────────────────────────────────
@@ -127,7 +129,7 @@ async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), _sess
             error_code = result.get("error_code")
             error_type = result.get("error_type", "")
 
-            print(f"WhatsApp API Error — Code: {error_code}, Type: {error_type}, Msg: {error_msg[:100]}")
+            logger.warning("WhatsApp API Error — Code: %s, Type: %s, Msg: %s", error_code, error_type, error_msg[:100])
 
             is_template_error = (
                 error_code in [131047, 132001]
