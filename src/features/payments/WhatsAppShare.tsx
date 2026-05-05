@@ -510,15 +510,14 @@ export function WhatsAppShare() {
       // Recalculate GST with current amount
       const currentGstCalculation = calculateGST(currentAmountNum, gstRate);
       
-      // Use the preview invoice number (already shown to user)
-      // Validate invoice number format
-      if (!invoiceNumber || !invoiceNumber.trim()) {
-        toast.error('Invalid invoice number. Please refresh the page.');
-        setShareStatus('idle');
-        return;
+      // Reserve the server-assigned invoice number BEFORE generating the PDF so
+      // the number in the PDF, message, and ledger entry are always the same.
+      const { invoiceNumber: reservedNumber, source } = await getNextInvoiceNumber();
+      if (source === 'local') {
+        console.warn('Invoice number issued from local fallback — backend unreachable.');
       }
-      const invoiceNumToUse = invoiceNumber.trim();
-      
+      const invoiceNumToUse = reservedNumber;
+
       // Prepare invoice data
       const invoiceData: InvoiceData = {
         invoiceNumber: invoiceNumToUse,
@@ -553,15 +552,6 @@ export function WhatsAppShare() {
         setShareStatus('idle');
         return;
       }
-      
-      // Reserve the invoice number from the server atomically (multi-device safe).
-      // Falls back to localStorage if the backend is unreachable.
-      const { invoiceNumber: reservedNumber, source } = await getNextInvoiceNumber();
-      if (source === 'local') {
-        console.warn('Invoice number issued from local fallback — backend unreachable.');
-      }
-      // Update the displayed number to match the reserved one
-      invoiceData.invoiceNumber = reservedNumber;
       
       // Prepare WhatsApp message text
       const message = `Invoice ${invoiceNumToUse}\n` +
