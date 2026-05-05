@@ -30,9 +30,10 @@ export async function loginWithBackend(
   deviceId: string,
 ): Promise<{ user: User; sessionToken: string } | null> {
   try {
-    const params = new URLSearchParams({ pin, device_id: deviceId });
-    const res = await fetch(`${API_BASE}/api/v1/session/login?${params}`, {
+    const res = await fetch(`${API_BASE}/api/v1/session/login`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, device_id: deviceId }),
     });
     if (!res.ok) return null;
     const data = await res.json();

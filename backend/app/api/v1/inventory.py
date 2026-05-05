@@ -20,13 +20,13 @@ def normalize_name(name: str) -> str:
 
 def broadcast_event(event_data: dict):
     """Schedule a WS broadcast on uvicorn's running event loop."""
-    import asyncio
+    import asyncio, logging as _log
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        loop = asyncio._get_running_loop()  # noqa: SLF001
+        if loop is not None:
             asyncio.run_coroutine_threadsafe(broadcast(event_data), loop)
     except Exception as e:
-        print(f"Broadcast error (non-critical): {e}")
+        _log.getLogger(__name__).warning("Broadcast error (non-critical): %s", e)
 
 
 # ---------------------------
@@ -38,7 +38,8 @@ def get_items(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     search: str = Query("", description="Search by name, SKU, or HSN"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session)
 ):
     """Get paginated inventory items with search"""
     query = db.query(models.InventoryItem).filter(models.InventoryItem.is_active == True)
@@ -143,7 +144,7 @@ def create_item(item: schemas.InventoryItemCreate, db: Session = Depends(get_db)
 
 
 @router.get("/items/{item_id}", response_model=schemas.InventoryItemOut)
-def get_item(item_id: int, db: Session = Depends(get_db)):
+def get_item(item_id: int, db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Get single inventory item"""
     item = db.query(models.InventoryItem).filter(
         models.InventoryItem.id == item_id,
@@ -319,7 +320,7 @@ def create_stock_transaction(txn: schemas.StockTransactionCreate, db: Session = 
 
 
 @router.get("/summary", response_model=List[schemas.InventorySummary])
-def get_inventory_summary(db: Session = Depends(get_db)):
+def get_inventory_summary(db: Session = Depends(get_db), _session=Depends(get_current_session)):
     """Get inventory summary with stock levels — uses SQL aggregation to avoid N+1 queries."""
     # Aggregate stock quantities per item in a single query
     stock_totals = dict(
@@ -347,20 +348,25 @@ def get_inventory_summary(db: Session = Depends(get_db)):
 
 
 @router.get("/stock-value")
-def get_total_stock_value(db: Session = Depends(get_db)):
-    """Calculate total inventory value"""
+def get_total_stock_value(db: Session = Depends(get_db), _session=Depends(get_current_session)):
+    """Calculate total inventory value using a single SQL aggregate (no N+1)."""
+    stock_totals = dict(
+        db.query(models.StockTransaction.item_id, func.sum(models.StockTransaction.qty))
+        .filter(models.StockTransaction.is_active == True)
+        .group_by(models.StockTransaction.item_id)
+        .all()
+    )
+
     items = db.query(models.InventoryItem).filter(models.InventoryItem.is_active == True).all()
-    
-    total_value = 0
-    total_items = len(items)
-    
+
+    total_value = 0.0
     for item in items:
-        current_stock = sum([txn.qty for txn in item.stock_transactions]) + (item.opening_qty or 0)
+        current_stock = (stock_totals.get(item.id) or 0) + (item.opening_qty or 0)
         unit_price = item.sale_price or item.purchase_price or 0
         total_value += current_stock * unit_price
-    
+
     return {
-        "total_items": total_items,
+        "total_items": len(items),
         "total_value": round(total_value, 2),
         "currency": "INR"
     }

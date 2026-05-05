@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from ...api.deps import get_current_session
 import pytesseract
 from typing import Optional
 import base64
@@ -44,14 +45,21 @@ except Exception as e:
     logger.error(f"Failed to initialize Google Cloud Vision client: {e}")
     VISION_ENABLED = False
 
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB decoded limit
+
 class OCRRequest(BaseModel):
     image_base64: str
     target_field: Optional[str] = None
 
 @router.post("/recognize")
-def recognize(req: OCRRequest):
+def recognize(req: OCRRequest, _session=Depends(get_current_session)):
     try:
         img_bytes = base64.b64decode(req.image_base64)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid image data: {exc}")
+    if len(img_bytes) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large. Maximum size is 5 MB.")
+    try:
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {exc}")
@@ -65,13 +73,15 @@ def recognize(req: OCRRequest):
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {exc}")
 
 @router.post("/recognize-cloud")
-def recognize_cloud(req: OCRRequest):
+def recognize_cloud(req: OCRRequest, _session=Depends(get_current_session)):
     if not VISION_ENABLED:
         raise HTTPException(status_code=501, detail="Google Cloud Vision is not configured on this server.")
     try:
         img_bytes = base64.b64decode(req.image_base64)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {exc}")
+    if len(img_bytes) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large. Maximum size is 5 MB.")
     try:
         image = vision.Image(content=img_bytes)
         response = vision_client.document_text_detection(image=image)

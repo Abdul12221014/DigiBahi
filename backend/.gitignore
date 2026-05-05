@@ -26,3 +26,8 @@ config/
 
 # Logs
 *.log
+
+# SQLite database files — never commit real data
+*.db
+*.db-wal
+*.db-shm

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DBSession
 from datetime import datetime, timedelta
 from secrets import token_urlsafe
@@ -16,8 +17,15 @@ def _hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.encode()).hexdigest()
 
 
+class LoginRequest(BaseModel):
+    pin: str = Field(..., min_length=4, max_length=8, pattern=r'^\d+$')
+    device_id: str = Field(..., min_length=1, max_length=128)
+
+
 @router.post("/login")
-def session_login(pin: str, device_id: str, db: DBSession = Depends(get_db)):
+def session_login(body: LoginRequest, db: DBSession = Depends(get_db)):
+    pin = body.pin
+    device_id = body.device_id
     user = db.query(User).filter(User.device_id == device_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid device or PIN")
@@ -41,20 +49,26 @@ def session_login(pin: str, device_id: str, db: DBSession = Depends(get_db)):
         "session_token": token,
         "expires_at": expires.isoformat(),
         "user_id": user.id,
+        "role": user.role,
     }
 
 
+class TokenRequest(BaseModel):
+    session_token: str = Field(..., min_length=1)
+
+
 @router.post("/logout")
-def session_logout(session_token: str, db: DBSession = Depends(get_db)):
+def session_logout(body: TokenRequest, db: DBSession = Depends(get_db)):
     db.query(SessionModel).filter(
-        SessionModel.session_token == session_token
+        SessionModel.session_token == body.session_token
     ).delete()
     db.commit()
     return {"ok": True}
 
 
 @router.post("/refresh")
-def session_refresh(session_token: str, db: DBSession = Depends(get_db)):
+def session_refresh(body: TokenRequest, db: DBSession = Depends(get_db)):
+    session_token = body.session_token
     s = db.query(SessionModel).filter(
         SessionModel.session_token == session_token
     ).first()

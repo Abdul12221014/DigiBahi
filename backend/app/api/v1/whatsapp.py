@@ -434,7 +434,7 @@ async def get_next_invoice_number(db: Session = Depends(get_db), _session: Sessi
 
 
 @router.get("/invoice-number/last", response_model=InvoiceNumberResponse)
-async def get_last_invoice_number(db: Session = Depends(get_db)):
+async def get_last_invoice_number(db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
     """Return the last issued invoice number without incrementing."""
     year = datetime.utcnow().year
     row = db.query(models.InvoiceSequence).filter(
@@ -453,7 +453,7 @@ async def get_last_invoice_number(db: Session = Depends(get_db)):
 # ─── Diagnostics ───────────────────────────────────────────────────────────────
 
 @router.get("/status")
-async def whatsapp_status():
+async def whatsapp_status(_session: SessionModel = Depends(get_current_session)):
     """
     Check WhatsApp service configuration status.
     Use this during onboarding to verify credentials before going live.

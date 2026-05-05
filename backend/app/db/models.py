@@ -35,6 +35,7 @@ class User(Base):
     name = Column(String)
     pin_hash = Column(String)
     device_id = Column(String, index=True)
+    role = Column(String, default="employee", nullable=False)  # owner | accountant | employee
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserRole(Base):
@@ -57,7 +58,7 @@ class Session(Base):
     __tablename__ = "sessions"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    session_token = Column(String, index=True)
+    session_token = Column(String, unique=True, index=True, nullable=False)
     device_id = Column(String, index=True)
     expires_at = Column(DateTime)
 
@@ -101,6 +102,7 @@ class StockTransaction(Base):
     type = Column(String, nullable=False, index=True)  # open|purchase|sale|adjustment
     qty = Column(Float, nullable=False)
     ref_ledger_id = Column(Integer, ForeignKey("ledger_entries.id"))
+    is_active = Column(Boolean, default=True, nullable=False)  # soft delete
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +10,8 @@ from ...db import models
 from ...db import schemas
 from .sync_ws import broadcast
 from ..deps import get_current_session
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["Ledger"])
 
@@ -31,11 +34,11 @@ def broadcast_event(event_data: dict):
     """
     import asyncio
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        loop = asyncio._get_running_loop()  # noqa: SLF001 — non-raising, works on 3.8–3.12
+        if loop is not None:
             asyncio.run_coroutine_threadsafe(broadcast(event_data), loop)
     except Exception as e:
-        print(f"Broadcast error (non-critical): {e}")
+        logger.warning("Broadcast error (non-critical): %s", e)
     
 @router.get("/ledger/entries")
 def get_ledger_entries_alias(
@@ -47,10 +50,11 @@ def get_ledger_entries_alias(
     to: str = Query("", description="Date to (YYYY-MM-DD)"),
     tags: str = Query("", description="Filter by tags (comma-separated)"),
     include_total: bool = Query(False, description="Include total count in response"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session)
 ):
     """Alias for GET /ledger for compatibility"""
-    return get_ledger(skip, limit, search, type, from_, to, tags, include_total, db)
+    return get_ledger(skip, limit, search, type, from_, to, tags, include_total, db, _session)
 
 
 @router.get("/ledger")
@@ -63,7 +67,8 @@ def get_ledger(
     to: str = Query("", description="Date to (YYYY-MM-DD)"),
     tags: str = Query("", description="Filter by tags (comma-separated)"),
     include_total: bool = Query(False, description="Include total count in response"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _session=Depends(get_current_session)
 ):
     """Get paginated ledger entries with filters"""
     query = db.query(models.LedgerEntry).filter(models.LedgerEntry.is_active == True)
@@ -83,7 +88,7 @@ def get_ledger(
                 models.LedgerEntry.date <= to
             )
         except ValueError:
-            pass  # Ignore invalid dates
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
     
     # Tags filter (comma-separated tags)
     if tags:
@@ -157,7 +162,7 @@ def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(
             party_name=entry.party_name,
             reference_no=entry.reference_no,
             tags=entry.tags,
-            created_by=None  # TODO: Get from auth context
+            created_by=_session.user_id
         )
         
         db.add(db_entry)

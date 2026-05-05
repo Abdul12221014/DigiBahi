@@ -19,9 +19,6 @@ export default defineConfig(({ mode }) => ({
       '.ngrok-free.dev',
       '.ngrok.io',
       '.ngrok.app',
-      '192.168.29.253',
-      'Abduls-MacBook-Air-2.local',
-      'annalisa-actinodrome-pablo.ngrok-free.dev'
     ],
   },
   plugins: [

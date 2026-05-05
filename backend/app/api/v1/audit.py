@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from ...db.base import get_db
 from ...services.audit_service import list_recent, record_action
@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/v1")
 
 
 @router.get("/audit")
-def audit_list(limit: int = 100, db: Session = Depends(get_db), _session=Depends(get_current_session)):
+def audit_list(limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db), _session=Depends(get_current_session)):
     return list_recent(db, limit)
 
 

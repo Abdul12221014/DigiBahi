@@ -1,12 +1,19 @@
-from fastapi import APIRouter
-from ...utils.memory import get_memory_usage, is_raspberry_pi
+from fastapi import APIRouter, Depends
+from ...api.deps import get_current_session
 
 router = APIRouter(prefix="/api/v1")
 
 @router.get("/health")
 def health():
-    """Health check endpoint with memory status"""
+    """Public health check for load balancers and uptime monitors."""
+    return {"status": "ok"}
+
+
+@router.get("/health/detail")
+def health_detail(_session=Depends(get_current_session)):
+    """Authenticated system diagnostics — memory and platform info."""
     try:
+        from ...utils.memory import get_memory_usage, is_raspberry_pi
         mem = get_memory_usage()
         return {
             "status": "ok",
@@ -20,11 +27,6 @@ def health():
             }
         }
     except Exception as e:
-        # Fallback if memory monitoring fails
-        return {
-            "status": "ok",
-            "platform": "unknown",
-            "memory": {"error": str(e)}
-        }
+        return {"status": "ok", "memory": {"error": str(e)}}
 
 
