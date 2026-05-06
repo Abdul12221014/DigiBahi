@@ -54,10 +54,12 @@ import Header from '@/components/layout/Header';
 import { exportBackup, importBackup } from '@/services/backup.service';
 import { flush } from '@/services/sync.service';
 import useOnline from '@/hooks/useOnline';
+import useSession from '@/hooks/useSession';
 
 const Index = () => {
   const { t, i18n } = useTranslation();
   const online = useOnline();
+  useSession(); // triggers PIN overlay on session expiry
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | undefined>(undefined);
   const [showPenCanvas, setShowPenCanvas] = useState(false);
@@ -88,21 +90,6 @@ const Index = () => {
       setSelectedFormat(savedFormat);
     }
 
-    // Developer Auto-Login: only active in local dev builds, never in production
-    if (import.meta.env.DEV) {
-      import('@/lib/auth').then(({ getCurrentUser, setCurrentUser }) => {
-        if (!getCurrentUser()) {
-          setCurrentUser({
-            id: -1,
-            username: 'admin',
-            role: 'owner',
-            pinHash: '',
-            createdAt: new Date()
-          });
-          console.info('🛠️ Developer auto-login active');
-        }
-      });
-    }
   }, []);
 
   const handleEntrySuccess = () => {

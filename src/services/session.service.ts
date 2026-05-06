@@ -1,51 +1,75 @@
-import { encryptObject, decryptObject } from '@/lib/localStore';
+const KEY = 'digbahi_session_v2';
 
-const KEY = 'digbahi_session_v1';
-
-async function saveSession(session: { token: string; expiresAt: string }) {
-  const store = await encryptObject(session, '1234');
-  localStorage.setItem(KEY, JSON.stringify({
-    payload: Array.from(new Uint8Array(store.payload)),
-    iv: Array.from(new Uint8Array(store.iv)),
-    salt: Array.from(new Uint8Array(store.salt)),
-  }));
+interface StoredSession {
+  token: string;
+  expiresAt: string;
 }
 
-async function loadSession(): Promise<{ token: string; expiresAt: string } | null> {
-  const raw = localStorage.getItem(KEY);
-  if (!raw) return null;
-  const parsed = JSON.parse(raw);
-  const toBuf = (arr: number[]) => new Uint8Array(arr).buffer;
+function saveSession(s: StoredSession): void {
+  localStorage.setItem(KEY, JSON.stringify(s));
+}
+
+function loadSession(): StoredSession | null {
   try {
-    return await decryptObject(toBuf(parsed.payload), toBuf(parsed.iv), toBuf(parsed.salt), '1234');
-  } catch { return null; }
+    const raw = localStorage.getItem(KEY);
+    return raw ? (JSON.parse(raw) as StoredSession) : null;
+  } catch {
+    return null;
+  }
 }
+
+const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
 export const sessionService = {
-  async login(pin: string, deviceId: string) {
-    const res = await fetch('/api/v1/session/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, device_id: deviceId }) });
+  saveSession,
+  loadSession,
+
+  async login(pin: string, deviceId: string, username?: string) {
+    const res = await fetch(`${API_BASE}/api/v1/session/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, device_id: deviceId, ...(username ? { username } : {}) }),
+    });
     if (!res.ok) throw new Error('Session login failed');
     const data = await res.json();
-    await saveSession({ token: data.session_token, expiresAt: data.expires_at });
+    saveSession({ token: data.session_token, expiresAt: data.expires_at });
     return data;
   },
-  async refresh(): Promise<{ token: string; expiresAt: string } | null> {
-    const s = await loadSession(); if (!s) return null;
-    const res = await fetch('/api/v1/session/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_token: s.token }) });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const session = { token: data.session_token, expiresAt: data.expires_at };
-    await saveSession(session);
-    return session;
+
+  async refresh(): Promise<StoredSession | null> {
+    const s = loadSession();
+    if (!s) return null;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/session/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: s.token }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const session: StoredSession = { token: data.session_token, expiresAt: data.expires_at };
+      saveSession(session);
+      return session;
+    } catch {
+      return null;
+    }
   },
-  async logout() {
-    const s = await loadSession(); if (!s) return;
-    await fetch('/api/v1/session/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_token: s.token }) });
+
+  async logout(): Promise<void> {
+    const s = loadSession();
+    if (!s) return;
+    try {
+      await fetch(`${API_BASE}/api/v1/session/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: s.token }),
+      });
+    } catch {
+      // best-effort — always clear local state
+    }
     localStorage.removeItem(KEY);
   },
-  loadSession,
 };
 
 export default sessionService;
-
-

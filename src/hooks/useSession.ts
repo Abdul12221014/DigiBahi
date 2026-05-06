@@ -1,31 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import sessionService from '@/services/session.service';
+import { useAuth } from '@/contexts/AuthContext';
+
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 export function useSession() {
-  const [active, setActive] = useState<boolean>(false);
-  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const { isAuthenticated, lockScreen } = useAuth();
 
   useEffect(() => {
-    let timer: number | undefined;
-    (async () => {
-      const s = await sessionService.loadSession();
-      if (s) { setActive(true); setExpiresAt(s.expiresAt); }
-    })();
+    if (!isAuthenticated) return;
+
+    let timer: number;
+
     const tick = async () => {
       const s = await sessionService.refresh();
-      if (s) { setActive(true); setExpiresAt(s.expiresAt); }
-      // refresh every 10 minutes
-      timer = window.setTimeout(tick, 10 * 60 * 1000);
+      if (!s) {
+        // Token expired or server unreachable — re-lock the kiosk
+        lockScreen();
+        return;
+      }
+      timer = window.setTimeout(tick, REFRESH_INTERVAL_MS);
     };
-    timer = window.setTimeout(tick, 10 * 60 * 1000);
-    return () => { if (timer) window.clearTimeout(timer); };
-  }, []);
 
-  const logout = async () => { await sessionService.logout(); setActive(false); setExpiresAt(null); };
-
-  return { active, expiresAt, logout };
+    timer = window.setTimeout(tick, REFRESH_INTERVAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [isAuthenticated, lockScreen]);
 }
 
 export default useSession;
-
-

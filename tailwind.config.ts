@@ -95,6 +95,15 @@ export default {
         "pulse-glow": {
           "0%, 100%": { boxShadow: "0 0 20px hsl(145 70% 42% / 0.3)" },
           "50%": { boxShadow: "0 0 30px hsl(145 70% 42% / 0.5)" }
+        },
+        "shake": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "15%": { transform: "translateX(-8px)" },
+          "30%": { transform: "translateX(8px)" },
+          "45%": { transform: "translateX(-6px)" },
+          "60%": { transform: "translateX(6px)" },
+          "75%": { transform: "translateX(-4px)" },
+          "90%": { transform: "translateX(4px)" }
         }
       },
       animation: {
@@ -106,6 +115,7 @@ export default {
         "shimmer": "shimmer 2s infinite",
         "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "shake": "shake 0.5s ease-in-out",
       },
     },
   },
