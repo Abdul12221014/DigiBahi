@@ -24,7 +24,7 @@ _MAX_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 15 * 60  # 15 minutes
 
 # {device_id: {"attempts": int, "locked_until": float}}
-_login_attempts: dict[str, dict] = defaultdict(lambda: {"attempts": 0, "locked_until": 0.0})
+_login_attempts = defaultdict(lambda: {"attempts": 0, "locked_until": 0.0})
 
 
 def _check_lockout(device_id: str) -> None:
