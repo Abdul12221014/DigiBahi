@@ -1,7 +1,9 @@
 import { getWebSocketUrl, getApiBaseUrl } from '@/lib/api-config';
 
+export interface WsMessage { type: string; data?: unknown; }
+
 let socket: WebSocket | null = null;
-const listeners: Array<(msg: any) => void> = [];
+const listeners: Array<(msg: WsMessage) => void> = [];
 
 // Exponential backoff config (stops spamming console on Render Free tier cold-starts)
 let retryCount = 0;
@@ -70,11 +72,11 @@ export function initWS() {
   wakeupBackend().then(() => connectWS());
 }
 
-export function onWSMessage(fn: (msg: any) => void) {
+export function onWSMessage(fn: (msg: WsMessage) => void) {
   listeners.push(fn);
 }
 
-export function offWSMessage(fn: (msg: any) => void) {
+export function offWSMessage(fn: (msg: WsMessage) => void) {
   const idx = listeners.indexOf(fn);
   if (idx !== -1) listeners.splice(idx, 1);
 }

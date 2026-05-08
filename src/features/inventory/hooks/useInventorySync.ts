@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import ws from '@/services/ws.service';
+import ws, { type WsMessage } from '@/services/ws.service';
 import { toast } from 'sonner';
 
 interface UseInventorySyncCallbacks {
-  onItemCreated?: (item: any) => void;
-  onItemUpdated?: (item: any) => void;
+  onItemCreated?: (item: unknown) => void;
+  onItemUpdated?: (item: unknown) => void;
   onItemDeleted?: (id: number) => void;
-  onStockChanged?: (data: any) => void;
+  onStockChanged?: (data: unknown) => void;
 }
 
 /**
@@ -22,7 +22,7 @@ export function useInventorySync(callbacks: UseInventorySyncCallbacks) {
   }, [callbacks]);
 
   useEffect(() => {
-    const handler = (msg: any) => {
+    const handler = (msg: WsMessage) => {
       // Only process inventory events
       if (!msg.type || !msg.type.startsWith('inventory_')) {
         return;
@@ -30,33 +30,47 @@ export function useInventorySync(callbacks: UseInventorySyncCallbacks) {
 
       const currentCallbacks = callbacksRef.current;
 
+      // Helper: safely read a string prop from unknown data
+      const strProp = (data: unknown, key: string): string => {
+        if (data !== null && typeof data === 'object' && key in data) {
+          const val = (data as Record<string, unknown>)[key];
+          return typeof val === 'string' ? val : '';
+        }
+        return '';
+      };
+
+      const numProp = (data: unknown, key: string): number | undefined => {
+        if (data !== null && typeof data === 'object' && key in data) {
+          const val = (data as Record<string, unknown>)[key];
+          return typeof val === 'number' ? val : undefined;
+        }
+        return undefined;
+      };
+
       try {
         switch (msg.type) {
           case 'inventory_item_created': {
-            const createdItem = msg.data;
-            currentCallbacks.onItemCreated?.(createdItem);
-            toast.success(`New item: ${createdItem.name || 'Untitled'}`);
+            currentCallbacks.onItemCreated?.(msg.data);
+            toast.success(`New item: ${strProp(msg.data, 'name') || 'Untitled'}`);
             break;
           }
 
           case 'inventory_item_updated': {
-            const updatedItem = msg.data;
-            currentCallbacks.onItemUpdated?.(updatedItem);
-            toast.info(`Item updated: ${updatedItem.name || 'Unknown'}`);
+            currentCallbacks.onItemUpdated?.(msg.data);
+            toast.info(`Item updated: ${strProp(msg.data, 'name') || 'Unknown'}`);
             break;
           }
 
           case 'inventory_item_deleted': {
-            const deletedId = msg.data?.id;
-            currentCallbacks.onItemDeleted?.(deletedId);
+            const deletedId = numProp(msg.data, 'id');
+            if (deletedId !== undefined) currentCallbacks.onItemDeleted?.(deletedId);
             toast.warning(`Item deleted`);
             break;
           }
 
           case 'inventory_stock_changed': {
-            const stockData = msg.data;
-            currentCallbacks.onStockChanged?.(stockData);
-            toast.info(`Stock changed for: ${stockData.item_name || 'Unknown'}`);
+            currentCallbacks.onStockChanged?.(msg.data);
+            toast.info(`Stock changed for: ${strProp(msg.data, 'item_name') || 'Unknown'}`);
             break;
           }
 

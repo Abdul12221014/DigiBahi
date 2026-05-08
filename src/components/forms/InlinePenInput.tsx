@@ -429,7 +429,7 @@ export function InlinePenInput({
       ctx.putImageData(imageData, 0, 0);
       
       return processedCanvas;
-  }, [canvasDimensions]);
+  }, [canvasDimensions, getPathsBoundingBox]);
   
   // Recognize text with single attempt and optimized preprocessing
   const recognizeWithRetry = useCallback(async (
@@ -618,18 +618,18 @@ export function InlinePenInput({
       } else {
         toast.success(`High confidence (${(avgConfidence * 100).toFixed(0)}%). Click Accept to fill.`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Clear timeout on error
       if (recognitionTimeoutRef.current) {
         clearTimeout(recognitionTimeoutRef.current);
         recognitionTimeoutRef.current = null;
       }
-      
+
       console.error('[OCR Debug] OCR Error:', error);
-      
+
       // Provide helpful, actionable error messages
-      const errorMessage = error?.message || '';
-      
+      const errorMessage = error instanceof Error ? error.message : '';
+
       if (errorMessage.includes('timeout') || errorMessage.includes('OCR request timeout')) {
         toast.error('Recognition timed out. Try: Write larger, use block letters, wait 2 seconds after writing.', {
           duration: 6000,
@@ -665,7 +665,7 @@ export function InlinePenInput({
       setIsRecognizing(false);
       console.log('[OCR Debug] Recognition process completed, isRecognizing set to false');
     }
-  }, [hasDrawing, targetField, onRecognized, onClose, cancelAutoRecognize, recognizeWithRetry]);
+  }, [hasDrawing, targetField, cancelAutoRecognize, recognizeWithRetry]);
   
   const scheduleAutoRecognize = useCallback(() => {
     if (!hasDrawing || isRecognizing) return;

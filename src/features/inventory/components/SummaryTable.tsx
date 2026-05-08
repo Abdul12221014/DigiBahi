@@ -73,7 +73,7 @@ export function SummaryTable() {
         id: summary.item_id,
         name: summary.name,
         nameKey: summary.name.toLowerCase().replace(/\s+/g, ' '),
-        gstRate: summary.gst_rate as any,
+        gstRate: summary.gst_rate as ItemSummary['gstRate'],
         openingQty: summary.stock,
         unit: 'pieces', // Default unit since API doesn't provide it
         createdAt: Date.now(),

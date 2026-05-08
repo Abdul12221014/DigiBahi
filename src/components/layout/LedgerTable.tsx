@@ -4,7 +4,6 @@ import { formatCurrency, formatDate } from '@/lib/gst';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { MessageCircle, Edit, Trash2, Plus, Download, Printer, PenTool } from 'lucide-react';
 import { toast } from 'sonner';
 import { LedgerFormatId, getFormatById } from '@/features/ledger-formats';
@@ -15,7 +14,6 @@ import { PaginationControls } from './PaginationControls';
 import { saveAs } from 'file-saver';
 import { useInvoiceShare } from '@/features/payments/hooks/useInvoiceShare';
 import { WhatsAppPhoneModal } from '@/components/modals/WhatsAppPhoneModal';
-import { db } from '@/lib/db';
 import { findBestContact, upsertContact } from '@/lib/customerMatch';
 import '@/styles/print.css';
 
@@ -57,9 +55,7 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
 
   // Real-time sync: Listen for ledger events from other devices
   useLedgerSync({
-    onEntryCreated: (newEntry) => {
-      // Reload entries when new entry is created from another device
-      // Use setRefreshLedger pattern to trigger useEffect reload
+    onEntryCreated: () => {
       setRefreshLedger(prev => prev + 1);
     },
     onEntryUpdated: (updatedEntry) => {
@@ -81,6 +77,7 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
     const ctrl = new AbortController();
     loadEntries(ctrl.signal);
     return () => ctrl.abort(); // ✅ Cleanup on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, refreshLedger, page, pageSize, filters]);
 
   async function loadEntries(signal?: AbortSignal) {
@@ -103,9 +100,9 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
       setEntries(result.items);
       setTotal(result.total);
       setHasNext(result.hasNext);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (signal?.aborted) return; // Ignore abort errors
-      setError(err.message || 'Failed to load ledger entries');
+      setError(err instanceof Error ? err.message : 'Failed to load ledger entries');
       toast.error('Failed to load ledger entries');
     } finally {
       setLoading(false);
@@ -236,7 +233,7 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
     ];
 
     // Escape CSV values (handle commas, quotes, newlines)
-    const escapeCSV = (value: any): string => {
+    const escapeCSV = (value: unknown): string => {
       if (value === null || value === undefined) return '';
       const str = String(value);
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -287,9 +284,9 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
 
       saveAs(blob, filename);
       toast.success('CSV exported successfully');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('CSV export failed:', error);
-      toast.error('Failed to export CSV: ' + (error.message || 'Unknown error'));
+      toast.error('Failed to export CSV: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -327,16 +324,6 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
       }
     }
   }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'sale': return 'bg-success/10 text-success';
-      case 'purchase': return 'bg-info/10 text-info';
-      case 'expense': return 'bg-destructive/10 text-destructive';
-      case 'receipt': return 'bg-accent/10 text-accent';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
 
   if (loading) {
     return <div className="text-center py-8">Loading ledger...</div>;
@@ -515,7 +502,7 @@ export function LedgerTable({ onAddEntry, onEditEntry, onQuickPenEntry, refresh 
 
               return (
                 <>
-                  {dayEntries.map(({ entry, balance }) => (
+                  {dayEntries.map(({ entry }) => (
                     <TableRow key={entry.id} className="border-b border-orange-100">
                       <TableCell className="font-mono">{formatDate(entry.date)}</TableCell>
                       <TableCell className="text-green-700 font-semibold">

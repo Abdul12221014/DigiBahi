@@ -3,6 +3,8 @@ import { StrokeEngine } from '../services/strokeEngine';
 import History, { Command } from '../services/history.service';
 import { saveStroke, loadAll, deleteStroke } from '@/lib/localStore';
 import type { Stroke, StrokePoint } from '../types/pen.types';
+
+type StrokeWithCache = Stroke & { lastDrawnIndex?: number; ctxStateSet?: boolean };
 import type { CanvasConfig } from '../types/canvas.types';
 import { usePenTool } from '../context/PenToolContext';
 import { getPaperTemplate } from '../templates/paper-templates';
@@ -87,6 +89,7 @@ export function useCanvas() {
     });
     drawBackground();
     redrawAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawBackground, config.height]);
 
   useEffect(() => {
@@ -95,19 +98,19 @@ export function useCanvas() {
     resizeToContainer();
     // Load session strokes
     loadAll().then(data => {
-      if (Array.isArray(data.strokes)) setStrokes(data.strokes as any);
+      if (Array.isArray(data.strokes)) setStrokes(data.strokes as Stroke[]);
     });
     return () => ro.disconnect();
   }, [resizeToContainer]);
 
-  const getPattern = (ctx: CanvasRenderingContext2D, color: string, opacity: number) => {
+  const getPattern = useCallback((ctx: CanvasRenderingContext2D, color: string, opacity: number) => {
     const key = `${color}-${opacity}`;
     if (!patternCacheRef.current.has(key)) {
       const pattern = createPencilPattern(ctx, color, opacity);
       if (pattern) patternCacheRef.current.set(key, pattern);
     }
     return patternCacheRef.current.get(key);
-  };
+  }, []);
 
   const redrawAll = useCallback(() => {
     const c = canvasRef.current; if (!c) return;
@@ -206,7 +209,7 @@ export function useCanvas() {
 
       ctx.restore();
     });
-  }, [strokes]);
+  }, [strokes, getPattern]);
 
   const addStrokeCommand = useCallback((stroke: Stroke): Command => ({
     do: () => { setStrokes(prev => [...prev, stroke]); requestIdleCallback?.(() => saveStroke(stroke)); },
@@ -272,8 +275,8 @@ export function useCanvas() {
     };
     currentStrokeRef.current = stroke;
     lastPointRef.current = p;
-    (stroke as any).lastDrawnIndex = 0; // Initialize drawing index
-  }, [tool, color, width, opacity, eraserMode]);
+    (stroke as StrokeWithCache).lastDrawnIndex = 0; // Initialize drawing index
+  }, [tool, color, width, opacity, eraserMode, strokes, deleteStrokeCommand, redrawAll]);
 
   const extendStroke = useCallback((p: StrokePoint) => {
     // OBJECT ERASER LOGIC
@@ -396,7 +399,7 @@ export function useCanvas() {
           }
         }
 
-        const lastDrawnIndex = (stroke as any).lastDrawnIndex || 0;
+        const lastDrawnIndex = (stroke as StrokeWithCache).lastDrawnIndex || 0;
         const pointsToDraw = stroke.points.slice(lastDrawnIndex);
 
         if (pointsToDraw.length < 2) {
@@ -406,11 +409,11 @@ export function useCanvas() {
 
         // OPTIMIZATION: Cache context state to avoid repeated getContext calls
         // Only save/restore when tool settings change
-        const needsSave = !(stroke as any).ctxStateSet;
+        const needsSave = !(stroke as StrokeWithCache).ctxStateSet;
         if (needsSave) ctx.save();
 
         // Set context state once per stroke
-        if (!(stroke as any).ctxStateSet) {
+        if (!(stroke as StrokeWithCache).ctxStateSet) {
           if (stroke.tool === 'eraser') {
             ctx.globalCompositeOperation = 'destination-out';
             ctx.globalAlpha = stroke.opacity;
@@ -439,7 +442,7 @@ export function useCanvas() {
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
           }
-          (stroke as any).ctxStateSet = true;
+          (stroke as StrokeWithCache).ctxStateSet = true;
         }
 
         // HYBRID APPROACH: Simplified quadratic curves for smooth handwriting with good performance
@@ -451,7 +454,6 @@ export function useCanvas() {
         if (stroke.tool === 'pen') {
           // Pen tool: Use simplified quadratic curves for smooth handwriting
           // Fast midpoint-based control points provide smooth curves without expensive calculations
-          let lastWidth = stroke.width; // Track last width
           for (let i = 1; i < pointsToDraw.length; i++) {
             const p0 = i === 1 && lastDrawnIndex > 0
               ? stroke.points[lastDrawnIndex - 1]
@@ -468,7 +470,6 @@ export function useCanvas() {
             const pressureDiff = Math.abs(pressure - prevPressure);
             if (i === 1 || pressureDiff > 0.08 || i % 3 === 0) {
               ctx.lineWidth = newWidth;
-              lastWidth = newWidth;
             }
 
             // Simplified quadratic curve: use midpoint as control point (fast and smooth)
@@ -502,11 +503,11 @@ export function useCanvas() {
 
         if (needsSave) ctx.restore();
 
-        (stroke as any).lastDrawnIndex = stroke.points.length;
+        (stroke as StrokeWithCache).lastDrawnIndex = stroke.points.length;
         rafIdRef.current = null;
       });
     }
-  }, [width, tool, getPattern, eraserMode, strokes, deleteStrokeCommand, redrawAll]);
+  }, [tool, getPattern, eraserMode, strokes, deleteStrokeCommand, redrawAll]);
 
   const endStroke = useCallback(() => {
     // OBJECT ERASER: Nothing to save
@@ -531,7 +532,7 @@ export function useCanvas() {
     }
 
     // Reset context state flag to prevent state leakage
-    (stroke as any).ctxStateSet = false;
+    (stroke as StrokeWithCache).ctxStateSet = false;
 
     currentStrokeRef.current = null;
     lastPointRef.current = null;

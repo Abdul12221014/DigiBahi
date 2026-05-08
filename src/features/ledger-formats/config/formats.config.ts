@@ -1,4 +1,4 @@
-import { LedgerFormat, LedgerFormatId } from '../types/format.types';
+import { LedgerFormat, LedgerFormatId, IndustryType } from '../types/format.types';
 
 // Traditional Khata Book Format
 export const TRADITIONAL_KHATA: LedgerFormat = {
@@ -312,6 +312,6 @@ export const getFormatById = (id: LedgerFormatId): LedgerFormat | undefined => {
 // Helper function to get recommended formats for industry
 export const getRecommendedFormats = (industry: string): LedgerFormat[] => {
   return ALL_FORMATS
-    .filter(format => format.industries.includes(industry as any) || format.recommended)
+    .filter(format => format.industries.includes(industry as IndustryType) || format.recommended)
     .sort((a, b) => b.popularity - a.popularity);
 };

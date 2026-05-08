@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Check, X, Edit3, Calendar, DollarSign, User, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { saveOCRTelemetry, hasConsent, saveConsent, getConsent, type ConsentRecord } from '@/lib/localStore';
+import { saveOCRTelemetry, hasConsent, saveConsent, getConsent, type ConsentRecord, type OCRTelemetry } from '@/lib/localStore';
 import { ConsentModal } from '@/components/ConsentModal';
 
 interface OCRField {
@@ -35,7 +35,7 @@ export function OCRConfirm({
   onCancel 
 }: OCRConfirmProps) {
   const [showConsentModal, setShowConsentModal] = useState(false);
-  const [pendingTelemetry, setPendingTelemetry] = useState<any>(null);
+  const [pendingTelemetry, setPendingTelemetry] = useState<OCRTelemetry | null>(null);
   
   // Parse recognized text to extract fields
   const parseTextToFields = useCallback((text: string): OCRField[] => {

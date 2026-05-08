@@ -20,8 +20,8 @@ export function isLinuxTablet(): boolean {
     navigator.hardwareConcurrency <= 4; // Pi 4 has 4 cores
 
   // Check for low memory (Pi 4 typically has 4GB)
-  const hasLowMemory = (navigator as any).deviceMemory
-    ? (navigator as any).deviceMemory <= 4
+  const hasLowMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+    ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory <= 4
     : true; // Assume low memory if deviceMemory API not available
 
   return isLinux && (isARM || hasLowMemory);
@@ -34,8 +34,8 @@ export function hasLimitedMemory(): boolean {
   if (typeof window === 'undefined') return true;
 
   // Use Device Memory API if available
-  if ((navigator as any).deviceMemory) {
-    return (navigator as any).deviceMemory <= 4;
+  if ((navigator as Navigator & { deviceMemory?: number }).deviceMemory) {
+    return (navigator as Navigator & { deviceMemory?: number }).deviceMemory <= 4;
   }
 
   // Fallback: Check hardware concurrency (Pi 4 has 4 cores)

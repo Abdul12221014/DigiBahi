@@ -214,19 +214,19 @@ export function useInvoiceShare() {
         toast.success('Invoice shared successfully!');
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.dismiss(loadingToastId);
       toast.dismiss('share-progress');
 
       // User manually cancelled — silent
-      if (err?.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         setShareStatus('idle');
         return;
       }
 
       setShareStatus('error');
       analytics.track('invoice_share_failed', {
-        error:       err?.message,
+        error:       err instanceof Error ? err.message : String(err),
         entry_type:  entry.type,
       });
 

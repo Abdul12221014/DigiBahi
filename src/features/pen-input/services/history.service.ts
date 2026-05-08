@@ -4,7 +4,7 @@ export interface Command {
   do(): void; 
   undo(): void; 
   action?: CommandAction; 
-  metadata?: Record<string, any>; 
+  metadata?: Record<string, unknown>;
 }
 
 export class History {

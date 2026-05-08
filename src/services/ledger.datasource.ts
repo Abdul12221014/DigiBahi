@@ -14,7 +14,7 @@ const ENABLE_LEDGER_API = import.meta.env.VITE_ENABLE_LEDGER_API === 'true';
 
 /** Returns the current user's numeric id, or null when not logged in. */
 function currentUserId(): number | null {
-  return (getCurrentUser() as any)?.id ?? null;
+  return getCurrentUser()?.id ?? null;
 }
 
 export interface LedgerListResult {
@@ -278,7 +278,7 @@ const apiDataSource: LedgerDataSource = {
       }
       
       return response as LedgerListResult;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('API list failed, falling back to Dexie:', error);
       toast.warning('Server unreachable. Switched to local-only mode.');
       return localDataSource.list(params, signal);
@@ -288,7 +288,7 @@ const apiDataSource: LedgerDataSource = {
   async create(entry, options, signal) {
     try {
       return await ledgerApi.createLedger(entry, options, signal);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('API create failed, falling back to Dexie:', error);
       toast.warning('Server unreachable. Switched to local-only mode.');
       return localDataSource.create(entry);
@@ -298,7 +298,7 @@ const apiDataSource: LedgerDataSource = {
   async update(id, patch, signal) {
     try {
       return await ledgerApi.updateLedger(id, patch, signal);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('API update failed, falling back to Dexie:', error);
       toast.warning('Server unreachable. Switched to local-only mode.');
       return localDataSource.update(id, patch, signal);
@@ -308,7 +308,7 @@ const apiDataSource: LedgerDataSource = {
   async remove(id, signal) {
     try {
       await ledgerApi.softDeleteLedger(id, signal);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('API delete failed, falling back to Dexie:', error);
       toast.warning('Server unreachable. Switched to local-only mode.');
       await localDataSource.remove(id);

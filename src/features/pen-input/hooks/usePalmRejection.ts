@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 
 /**
  * Palm Rejection Configuration
@@ -82,7 +82,7 @@ export interface PalmRejectionResult {
  * Optimized for capacitive touchscreens without active digitizers.
  */
 export function usePalmRejection(customConfig?: Partial<PalmRejectionConfig>) {
-    const config = { ...DEFAULT_CONFIG, ...customConfig };
+    const config = useMemo(() => ({ ...DEFAULT_CONFIG, ...customConfig }), [customConfig]);
 
     // Track pending pointers (temporal delay)
     const pendingPointersRef = useRef<Map<number, PendingPointer>>(new Map());

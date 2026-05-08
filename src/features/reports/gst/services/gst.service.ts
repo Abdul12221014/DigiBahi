@@ -43,16 +43,17 @@ export function round2(n: number): number {
 
 /** Runtime entry validation (no schema changes) */
 export function validateEntry(entry: unknown): boolean {
-  return !!entry
-    && typeof (entry as any).amount === "number" && isFinite((entry as any).amount)
-    && typeof (entry as any).type === "string"
-    && typeof (entry as any).date === "string" && isIsoDate((entry as any).date)
-    && ["sale","purchase","expense","receipt","return"].includes((entry as any).type);
+  if (!entry || typeof entry !== 'object') return false;
+  const e = entry as Record<string, unknown>;
+  return typeof e.amount === "number" && isFinite(e.amount)
+    && typeof e.type === "string"
+    && typeof e.date === "string" && isIsoDate(e.date)
+    && ["sale","purchase","expense","receipt","return"].includes(e.type);
 }
 
 /** Safe processing of negative/return entries */
 export function handleReturn(e: unknown) {
-  const entry = e as any;
+  const entry = (e && typeof e === 'object') ? e as Record<string, unknown> : null;
   const amt = Number(entry?.amount ?? 0);
   if (amt >= 0 && entry?.type !== "return") return null;
 
@@ -76,7 +77,7 @@ export function handleReturn(e: unknown) {
 export function isHeuristicMode(entries: unknown[]): boolean {
   if (!Array.isArray(entries) || !entries.length) return false;
   return entries.some(e => {
-    const entry = e as any;
+    const entry = (e && typeof e === 'object') ? e as Record<string, unknown> : null;
     const hasRate = entry?.gstRate != null && isFinite(Number(entry.gstRate));
     const hasAmt = entry?.gstAmount != null && isFinite(Number(entry.gstAmount));
     return !hasRate && !hasAmt;
@@ -95,7 +96,6 @@ export function withPerformanceMonitoring<T>(
   const duration = end - start;
   if (import.meta.env.DEV && duration > threshold) {
     // Keep the string short to protect bundle size
-    // eslint-disable-next-line no-console
     console.warn(`[${label}] slow: ${Math.round(duration)}ms`);
   }
   return result;
@@ -143,7 +143,7 @@ function getBusinessGSTRate(amount: number, type: string | undefined): number {
 
 /** Normalizes GST data even if missing fields */
 function normalizeTax(e: Entry) {
-  const rate = GST_RATES.includes(e.gstRate as any)
+  const rate = GST_RATES.includes(e.gstRate as 0 | 5 | 12 | 18 | 28)
     ? e.gstRate!
     : getBusinessGSTRate(e.amount, e.type);
 

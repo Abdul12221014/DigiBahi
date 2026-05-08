@@ -215,9 +215,9 @@ export function WhatsAppShare() {
       } else {
         throw new Error(result.message || 'Failed to send OTP');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if it's a template error (user needs to create template)
-      const errorMessage = error.message || '';
+      const errorMessage = error instanceof Error ? error.message : '';
       const lowerMessage = errorMessage.toLowerCase();
       
       if (lowerMessage.includes('template') && (lowerMessage.includes('not found') || lowerMessage.includes('does not exist'))) {
@@ -266,10 +266,10 @@ export function WhatsAppShare() {
                 transport: ['sms'],
               },
               signal: abortController.signal
-            } as any) as any;
-            
+            } as CredentialRequestOptions) as { code?: string } | null;
+
             clearTimeout(timeoutId);
-            
+
             if (otp && otp.code) {
               setOtp(otp.code);
               setOtpVerified(true);
@@ -283,9 +283,9 @@ export function WhatsAppShare() {
               otpTimer.start();
               return;
             }
-          } catch (getError: any) {
+          } catch (getError: unknown) {
             clearTimeout(timeoutId);
-            if (getError.name !== 'AbortError') {
+            if (!(getError instanceof Error && getError.name === 'AbortError')) {
               console.log('Web OTP error:', getError);
             }
           }
@@ -362,9 +362,9 @@ export function WhatsAppShare() {
         toast.error(result.message || 'Invalid OTP. Please check and try again.');
         return;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If API unavailable, fallback to local verification
-      console.log('WhatsApp API unavailable, using local verification:', error.message);
+      console.log('WhatsApp API unavailable, using local verification:', error instanceof Error ? error.message : error);
       
       // Verify OTP against generated OTP (fallback)
       const storedOTPData = sessionStorage.getItem(`otp_${customerPhone}`);
@@ -440,6 +440,7 @@ export function WhatsAppShare() {
         sessionStorage.removeItem(`otp_${customerPhone}`);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentMethod, customerPhone]);
 
   // Copy OTP to clipboard

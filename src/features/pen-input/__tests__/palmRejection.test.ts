@@ -42,7 +42,7 @@ describe('usePalmRejection', () => {
             const largeTouch = new MockPointerEvent({
                 width: 50,
                 height: 50
-            }) as any;
+            }) as unknown as PointerEvent;
 
             const check = result.current.checkImmediateRejection(largeTouch);
 
@@ -56,7 +56,7 @@ describe('usePalmRejection', () => {
             const smallTouch = new MockPointerEvent({
                 width: 15,
                 height: 15
-            }) as any;
+            }) as unknown as PointerEvent;
 
             const check = result.current.checkImmediateRejection(smallTouch);
 
@@ -71,7 +71,7 @@ describe('usePalmRejection', () => {
             const mediumTouch = new MockPointerEvent({
                 width: 35,
                 height: 35
-            }) as any;
+            }) as unknown as PointerEvent;
 
             const check = result.current.checkImmediateRejection(mediumTouch);
 
@@ -94,7 +94,7 @@ describe('usePalmRejection', () => {
                 height: 20,
                 clientY: 900, // 90% down the screen
                 target: canvas
-            }) as any;
+            }) as unknown as PointerEvent;
 
             // Mock getBoundingClientRect
             canvas.getBoundingClientRect = () => ({
@@ -127,7 +127,7 @@ describe('usePalmRejection', () => {
                 pointerId: 1,
                 width: 25,
                 height: 25
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.queuePointerForDelay(largeTouch, onAccept, onReject);
@@ -155,7 +155,7 @@ describe('usePalmRejection', () => {
                 pointerId: 1,
                 width: 10,
                 height: 10
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.queuePointerForDelay(smallTouch, onAccept, onReject);
@@ -178,7 +178,7 @@ describe('usePalmRejection', () => {
                 pointerId: 1,
                 width: 30,
                 height: 30
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.queuePointerForDelay(palmTouch, onAcceptPalm, onRejectPalm);
@@ -192,7 +192,7 @@ describe('usePalmRejection', () => {
                 pointerId: 2,
                 width: 8,
                 height: 8
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.queuePointerForDelay(stylusTouch, onAcceptStylus, onRejectStylus);
@@ -217,7 +217,7 @@ describe('usePalmRejection', () => {
                 height: 28,
                 clientX: 100,
                 clientY: 100
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.registerPointerDown(touch);
@@ -246,7 +246,7 @@ describe('usePalmRejection', () => {
                 height: 35,
                 clientX: 100,
                 clientY: 100
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.registerPointerDown(largeTouch);
@@ -277,7 +277,7 @@ describe('usePalmRejection', () => {
                 height: 15,
                 clientX: 100,
                 clientY: 100
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.registerPointerDown(smallTouch);
@@ -307,7 +307,7 @@ describe('usePalmRejection', () => {
                 pointerId: 1,
                 width: 20,
                 height: 20
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.registerPointerDown(touch);
@@ -332,7 +332,7 @@ describe('usePalmRejection', () => {
                 pointerId: 1,
                 width: 25,
                 height: 25
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.queuePointerForDelay(touch, onAccept, onReject);
@@ -364,7 +364,7 @@ describe('usePalmRejection', () => {
                 pointerId: 1,
                 width: 25,
                 height: 25
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.queuePointerForDelay(touch, onAccept, onReject);
@@ -385,7 +385,7 @@ describe('usePalmRejection', () => {
                 height: 35,
                 clientX: 100,
                 clientY: 100
-            }) as any;
+            }) as unknown as PointerEvent;
 
             act(() => {
                 result.current.registerPointerDown(largeTouch);

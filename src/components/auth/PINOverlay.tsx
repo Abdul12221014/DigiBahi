@@ -1,17 +1,52 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { NumericKeypad } from './NumericKeypad';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, CompanySettings } from '@/lib/db';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Loader2 } from 'lucide-react';
 import useOnline from '@/hooks/useOnline';
 
 const MAX_PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 
+/** localStorage key for persisting lockout state across refreshes. */
+const LOCKOUT_KEY = 'digbahi_pin_lockout';
+
 type PinState = 'idle' | 'submitting' | 'error' | 'success' | 'locked';
 
 interface UserRecord { username: string; role: string; }
+
+// ── Persisted lockout helpers ────────────────────────────────────────────────
+
+interface LockoutData {
+  lockoutEnd: number;
+  attempts: number;
+}
+
+function loadLockout(): LockoutData | null {
+  try {
+    const raw = localStorage.getItem(LOCKOUT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as LockoutData;
+    // If lockout has expired, clear it
+    if (data.lockoutEnd && data.lockoutEnd < Date.now()) {
+      localStorage.removeItem(LOCKOUT_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    localStorage.removeItem(LOCKOUT_KEY);
+    return null;
+  }
+}
+
+function saveLockout(data: LockoutData): void {
+  localStorage.setItem(LOCKOUT_KEY, JSON.stringify(data));
+}
+
+function clearLockout(): void {
+  localStorage.removeItem(LOCKOUT_KEY);
+}
 
 // ── Clock ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +78,8 @@ export function PINOverlay() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [activeUserIdx, setActiveUserIdx] = useState(0);
   const [company, setCompany] = useState<CompanySettings | null>(null);
+  const [dbError, setDbError] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Refs to avoid stale closure in submitPin
   const attemptsRef = useRef(0);
@@ -51,19 +88,43 @@ export function PINOverlay() {
   pinStateRef.current = pinState;
   usernameRef.current = users[activeUserIdx]?.username ?? 'owner';
 
+  // Entrance animation
+  useEffect(() => {
+    requestAnimationFrame(() => setMounted(true));
+  }, []);
+
+  // Restore lockout from localStorage on mount
+  useEffect(() => {
+    const saved = loadLockout();
+    if (saved) {
+      attemptsRef.current = saved.attempts;
+      if (saved.lockoutEnd > Date.now()) {
+        setLockoutEnd(saved.lockoutEnd);
+        setPinState('locked');
+      } else {
+        attemptsRef.current = 0;
+        clearLockout();
+      }
+    }
+  }, []);
+
   // Load users + company
   useEffect(() => {
-    db.users.toArray().then(us => {
+    Promise.all([
+      db.users.toArray(),
+      db.companySettings.toArray(),
+    ]).then(([us, settings]) => {
       setUsers(us.map(u => ({ username: u.username, role: u.role })));
-    });
-    db.companySettings.toArray().then(s => {
-      if (s.length > 0) setCompany(s[0]);
+      if (settings.length > 0) setCompany(settings[0]);
+    }).catch(() => {
+      setDbError(true);
     });
   }, []);
 
   // Lockout countdown
   useEffect(() => {
     if (!lockoutEnd) return;
+    let rafId: number;
     const tick = () => {
       const rem = Math.ceil((lockoutEnd - Date.now()) / 1000);
       if (rem <= 0) {
@@ -71,12 +132,14 @@ export function PINOverlay() {
         setLockoutEnd(null);
         attemptsRef.current = 0;
         setCountdown(0);
+        clearLockout();
       } else {
         setCountdown(rem);
-        setTimeout(tick, 1000);
+        rafId = window.setTimeout(tick, 1000) as unknown as number;
       }
     };
     tick();
+    return () => window.clearTimeout(rafId);
   }, [lockoutEnd]);
 
   // Physical keyboard
@@ -91,9 +154,33 @@ export function PINOverlay() {
     return () => window.removeEventListener('keydown', handler);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Focus trap: prevent tabbing out of overlay
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        // Keep focus within the overlay
+        const overlay = document.getElementById('pin-overlay');
+        if (!overlay) return;
+        const focusable = overlay.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) { e.preventDefault(); return; }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // ── PIN manipulation ──────────────────────────────────────────────────────
 
-  const appendDigit = (digit: string) => {
+  const appendDigit = useCallback((digit: string) => {
     setPin(prev => {
       const next = prev + digit;
       if (next.length >= MAX_PIN_LENGTH) {
@@ -103,17 +190,17 @@ export function PINOverlay() {
       }
       return next;
     });
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const deleteDigit = () => {
+  const deleteDigit = useCallback(() => {
     if (pinStateRef.current === 'error') setPinState('idle');
     setErrorMsg('');
     setPin(prev => prev.slice(0, -1));
-  };
+  }, []);
 
-  const triggerSubmit = () => {
+  const triggerSubmit = useCallback(() => {
     setPin(prev => { submitPin(prev); return prev; });
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submitPin = async (pinValue: string) => {
     if (!pinValue || pinStateRef.current === 'submitting' || pinStateRef.current === 'locked' || pinStateRef.current === 'success') return;
@@ -122,29 +209,34 @@ export function PINOverlay() {
 
     const ok = await login(usernameRef.current, pinValue);
 
+    // Clear PIN from memory immediately
+    setPin('');
+
     if (ok) {
       setPinState('success');
       // Brief green success flash, then auth context removes overlay
       setTimeout(() => {
-        setPin('');
         setPinState('idle');
       }, 600);
       return;
     }
 
     attemptsRef.current += 1;
-    setPin('');
     setShake(true);
     setTimeout(() => setShake(false), 500);
 
     if (attemptsRef.current >= MAX_ATTEMPTS) {
-      setLockoutEnd(Date.now() + LOCKOUT_MS);
+      const end = Date.now() + LOCKOUT_MS;
+      setLockoutEnd(end);
       setPinState('locked');
       setErrorMsg('');
+      saveLockout({ lockoutEnd: end, attempts: attemptsRef.current });
     } else {
       const left = MAX_ATTEMPTS - attemptsRef.current;
       setPinState('error');
       setErrorMsg(`Incorrect PIN — ${left} attempt${left !== 1 ? 's' : ''} remaining`);
+      // Persist attempts so refresh doesn't reset counter
+      saveLockout({ lockoutEnd: 0, attempts: attemptsRef.current });
     }
   };
 
@@ -161,15 +253,62 @@ export function PINOverlay() {
   const isLocked = pinState === 'locked';
   const isSubmitting = pinState === 'submitting';
 
+  // ── DB Error fallback ─────────────────────────────────────────────────────
+
+  if (dbError) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ background: 'rgba(3, 7, 18, 0.95)' }}
+      >
+        <div className="text-center p-8">
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+          <h2 style={{ color: '#f8fafc', fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>
+            Database Unavailable
+          </h2>
+          <p style={{ color: 'rgba(148,163,184,0.8)', fontSize: '14px', marginBottom: '24px', maxWidth: '320px' }}>
+            Could not load user data. This may happen if storage is full or corrupted.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: '#065f46',
+              color: '#ecfdf5',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '12px 24px',
+              fontSize: '15px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      id="pin-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="PIN unlock screen"
+      className={mounted ? 'animate-overlay-enter' : ''}
       style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         background: 'rgba(3, 7, 18, 0.88)',
         backdropFilter: 'blur(32px) saturate(0.4)',
         WebkitBackdropFilter: 'blur(32px) saturate(0.4)',
+        opacity: mounted ? 1 : 0,
         transition: 'opacity 0.4s ease',
       }}
     >
@@ -264,6 +403,7 @@ export function PINOverlay() {
                 setPinState('idle');
                 setErrorMsg('');
               }}
+              aria-label="Switch user"
               style={{
                 fontSize: '11px',
                 color: 'rgba(52,211,153,0.8)',
@@ -284,6 +424,8 @@ export function PINOverlay() {
         {/* PIN dots */}
         <div
           className={shake ? 'animate-shake' : ''}
+          role="status"
+          aria-label={`PIN entered: ${pin.length} of ${MAX_PIN_LENGTH} digits`}
           style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}
         >
           {Array.from({ length: MAX_PIN_LENGTH }).map((_, i) => {
@@ -292,6 +434,13 @@ export function PINOverlay() {
             return (
               <div
                 key={i}
+                className={
+                  isSuccessDot
+                    ? 'animate-dot-success'
+                    : filled
+                      ? 'animate-dot-fill'
+                      : ''
+                }
                 style={{
                   width: '14px',
                   height: '14px',
@@ -310,7 +459,7 @@ export function PINOverlay() {
                       : 'transparent',
                   transform: filled ? 'scale(1.15)' : 'scale(1)',
                   boxShadow: isSuccessDot ? '0 0 8px rgba(16,185,129,0.6)' : 'none',
-                  transition: 'all 0.15s ease',
+                  transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 }}
               />
             );
@@ -318,15 +467,21 @@ export function PINOverlay() {
         </div>
 
         {/* Status line */}
-        <div style={{ height: '20px', marginBottom: '20px', textAlign: 'center' }}>
+        <div
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          style={{ height: '24px', marginBottom: '18px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
           {isLocked ? (
             <span style={{ fontSize: '13px', color: '#f87171', fontWeight: 500 }}>
-              Locked — {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+              🔒 Locked — {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
             </span>
           ) : errorMsg ? (
             <span style={{ fontSize: '13px', color: '#fca5a5' }}>{errorMsg}</span>
           ) : isSubmitting ? (
-            <span style={{ fontSize: '13px', color: 'rgba(148,163,184,0.7)' }} className="animate-pulse">
+            <span style={{ fontSize: '13px', color: 'rgba(148,163,184,0.7)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Loader2 className="animate-spin-slow" style={{ width: '14px', height: '14px' }} />
               Verifying…
             </span>
           ) : isSuccess ? (
@@ -376,8 +531,8 @@ export function PINOverlay() {
             </>
           ) : (
             <>
-              <WifiOff style={{ width: '12px', height: '12px', color: '#f87171' }} />
-              <span style={{ color: '#fca5a5' }}>Offline mode — local login</span>
+              <WifiOff style={{ width: '14px', height: '14px', color: '#f59e0b' }} />
+              <span style={{ color: '#fbbf24', fontWeight: 500 }}>Offline mode — local login</span>
             </>
           )}
         </div>

@@ -149,7 +149,7 @@ export function ItemList({ onEdit }: ItemListProps) {
         nameKey: item.name_key,
         sku: item.sku,
         hsnCode: item.hsn_code,
-        gstRate: item.gst_rate as any,
+        gstRate: item.gst_rate as Item['gstRate'],
         openingQty: item.opening_qty,
         unit: item.unit,
         minQty: item.min_qty,

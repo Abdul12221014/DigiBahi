@@ -1,6 +1,19 @@
 // Type definitions for WebUSB API
 // Needed because @types/w3c-web-usb might not be installed or configured
 
+interface USBControlTransferParameters {
+    requestType: 'standard' | 'class' | 'vendor';
+    recipient: 'device' | 'interface' | 'endpoint' | 'other';
+    request: number;
+    value: number;
+    index: number;
+}
+
+interface USBInTransferResult {
+    data: DataView | null;
+    status: 'ok' | 'stall' | 'babble';
+}
+
 interface USBDeviceFilter {
     vendorId?: number;
     productId?: number;
@@ -69,10 +82,10 @@ interface USBDevice {
     claimInterface(interfaceNumber: number): Promise<void>;
     releaseInterface(interfaceNumber: number): Promise<void>;
     selectAlternateInterface(interfaceNumber: number, alternateSetting: number): Promise<void>;
-    controlTransferIn(setup: any, length: number): Promise<any>;
-    controlTransferOut(setup: any, data?: BufferSource): Promise<any>;
-    transferIn(endpointNumber: number, length: number): Promise<any>;
-    transferOut(endpointNumber: number, data: BufferSource): Promise<any>;
+    controlTransferIn(setup: USBControlTransferParameters, length: number): Promise<USBInTransferResult>;
+    controlTransferOut(setup: USBControlTransferParameters, data?: BufferSource): Promise<USBOutTransferResult>;
+    transferIn(endpointNumber: number, length: number): Promise<USBInTransferResult>;
+    transferOut(endpointNumber: number, data: BufferSource): Promise<USBOutTransferResult>;
     reset(): Promise<void>;
 }
 

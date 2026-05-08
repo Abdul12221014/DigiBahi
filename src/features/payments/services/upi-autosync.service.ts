@@ -7,7 +7,7 @@ const AUTOSYNC_PATH = '/api/v1/upi/sync';  // short, clean endpoint
 const AUTOSYNC_INTERVAL_MS = 60_000;       // 1 minute
 let autosyncTimer: number | null = null;
 
-function devLog(...args: any[]) {
+function devLog(...args: unknown[]) {
   if (import.meta.env.DEV) console.log('[UPI_AUTOSYNC]', ...args);
 }
 

@@ -65,9 +65,9 @@ export interface NotebookPage {
   templateId: string; // NEW: Template ID (blank, lined, columnar)
   sectionId?: string; // NEW: Section ID for organization
   canvasDataURL?: string; // Base64 PNG snapshot
-  strokes: any[]; // Stroke data for this page
-  shapes: any[]; // Shape data for this page
-  entries: any[]; // Ledger entries from OCR on this page
+  strokes: unknown[]; // Stroke data for this page
+  shapes: unknown[]; // Shape data for this page
+  entries: unknown[]; // Ledger entries from OCR on this page
   createdAt: number;
   updatedAt: number;
   tags?: string[];
@@ -244,9 +244,9 @@ export async function loadAll(pin = '1234') {
     penDB.strokes.toArray(), penDB.shapes.toArray(), penDB.ocr.toArray(),
   ]);
   return {
-    strokes: await Promise.all(strokes.map(r => decryptObject<any>(r.payload, r.iv, r.salt, pin))),
-    shapes: await Promise.all(shapes.map(r => decryptObject<any>(r.payload, r.iv, r.salt, pin))),
-    ocr: await Promise.all(ocr.map(r => decryptObject<any>(r.payload, r.iv, r.salt, pin))),
+    strokes: await Promise.all(strokes.map(r => decryptObject<unknown>(r.payload, r.iv, r.salt, pin))),
+    shapes: await Promise.all(shapes.map(r => decryptObject<unknown>(r.payload, r.iv, r.salt, pin))),
+    ocr: await Promise.all(ocr.map(r => decryptObject<unknown>(r.payload, r.iv, r.salt, pin))),
   };
 }
 

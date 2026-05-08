@@ -63,6 +63,7 @@ async function initialize(language: string = 'eng+hin'): Promise<void> {
     // WARNING: Do NOT pass functions (like logger) into createWorker options in Vite worker environments,
     // it will cause a DataCloneError across the worker boundary.
     console.log('[OCR Worker] Initializing Tesseract...');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tesseractWorker = await Tesseract.createWorker(language, 1) as any;
 
     console.log('[OCR Worker] Tesseract worker created, loading languages...');
@@ -133,7 +134,8 @@ async function runTesseract(
     console.log("[OCR Worker] Input instanceof Blob:", input instanceof Blob);
     console.log("[OCR Worker] Input instanceof ImageData:", input instanceof ImageData);
 
-    // TypeScript doesn't know this, so we cast to any
+    // Tesseract.js types don't cover all input modes (Blob); cast is required here
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await tesseractWorker.recognize(input as any);
     const data = result.data as { text: string; confidence: number; words?: Array<{ text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }> };
 

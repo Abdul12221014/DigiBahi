@@ -11,7 +11,7 @@ export function getUserRole(): Role | null {
   const user = getCurrentUser();
   if (!user) return null;
 
-  const role = (user as any).role as Role | undefined;
+  const role = user.role as Role | undefined;
   if (role === 'owner' || role === 'accountant' || role === 'employee') {
     return role;
   }

@@ -3,7 +3,7 @@ export { };
 declare global {
     interface Navigator {
         usb: {
-            requestDevice(options: { filters: any[] }): Promise<USBDevice>;
+            requestDevice(options: { filters: USBDeviceFilter[] }): Promise<USBDevice>;
             getDevices(): Promise<USBDevice[]>;
         };
     }

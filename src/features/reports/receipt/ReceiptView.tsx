@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { db } from '@/lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -26,18 +26,18 @@ export function ReceiptView() {
     return await db.ledger.get(parseInt(id));
   }, [id]);
 
-  useEffect(() => {
-    if (entry && autoPrint) {
-      handlePrint();
-    }
-  }, [entry, autoPrint]);
-
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     if (!entry) return;
     // Popup always uses browser print dialog.
     // USB printing is handled directly from the main Reports window.
     window.print();
-  };
+  }, [entry]);
+
+  useEffect(() => {
+    if (entry && autoPrint) {
+      handlePrint();
+    }
+  }, [entry, autoPrint, handlePrint]);
 
   if (!entry) return <div>Loading receipt...</div>;
 

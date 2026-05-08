@@ -4,6 +4,8 @@
  */
 
 import { getApiBaseUrl } from '@/lib/api-config';
+import { getSessionToken } from '@/lib/auth';
+import sessionService from '@/services/session.service';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || getApiBaseUrl();
 const API_ENDPOINT = `${API_BASE_URL}/api/v1/ledger`;
@@ -47,7 +49,7 @@ export interface ApiError {
   status: number;
   error: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }
 
 // Analytics interfaces (Phase D)
@@ -87,21 +89,14 @@ export interface AnalyticsParams {
 }
 
 function getSessionHeaders(): Record<string, string> {
-  try {
-    const user = sessionStorage.getItem('currentUser');
-    if (user) {
-      const parsed = JSON.parse(user);
-      if (parsed?.sessionToken) {
-        return { 'X-Session-Token': parsed.sessionToken };
-      }
-    }
-  } catch { /* sessionStorage unavailable */ }
+  const token = getSessionToken() ?? sessionService.loadSession()?.token;
+  if (token) return { 'X-Session-Token': token };
   return {};
 }
 
 /**
  * Abortable fetch helper with timeout.
- * Automatically injects X-Session-Token from sessionStorage.
+ * Automatically injects X-Session-Token from the in-memory auth state.
  */
 async function fetchJSON<T>(
   url: string,
@@ -249,7 +244,7 @@ export async function createLedger(
   options?: { idempotencyKey?: string },
   signal?: AbortSignal
 ): Promise<LedgerEntry> {
-  const body: any = { ...entry };
+  const body: Record<string, unknown> = { ...entry };
   if (options?.idempotencyKey) {
     body.idempotency_key = options.idempotencyKey;
   }

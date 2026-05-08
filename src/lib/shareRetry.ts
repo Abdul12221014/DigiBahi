@@ -76,16 +76,16 @@ export async function shareWithFallback(
       await navigator.share(shareData);
       analytics.track('invoice_share_success', { method: 'web_share' });
       return { method: 'web_share', success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
       // User cancelled — not a failure, propagate the cancel
-      if (err?.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         analytics.track('invoice_share_cancelled', { method: 'web_share' });
         throw err;
       }
       // Otherwise fall through to Level 2
       analytics.track('whatsapp_fallback_used', {
         reason: 'web_share_error',
-        error: err?.message,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
   }
@@ -93,8 +93,6 @@ export async function shareWithFallback(
   // ── Level 2: wa.me Link ───────────────────────────────────────────────────
   try {
     onMethod?.('wa_me');
-    const waUrl = buildWaUrl(dialCode, phone, message);
-    // Append PDF attachment note to message if we can also trigger download
     const waUrlWithNote = buildWaUrl(
       dialCode,
       phone,
@@ -108,10 +106,10 @@ export async function shareWithFallback(
       analytics.track('whatsapp_fallback_used', { reason: 'no_web_share_api' });
       return { method: 'wa_me', success: true };
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     analytics.track('whatsapp_fallback_used', {
       reason: 'wa_me_blocked',
-      error: err?.message,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 

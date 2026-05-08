@@ -94,6 +94,7 @@ export function PenInputModal({ open, onClose, onRecognized, targetField, onReco
         handleRecognize();
       }
     }, 2000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasDrawing, isRecognizing]);
 
   // Canvas setup
@@ -113,7 +114,7 @@ export function PenInputModal({ open, onClose, onRecognized, targetField, onReco
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
     // Disable gestures inside canvas
-    (canvas.style as any).touchAction = 'none';
+    canvas.style.touchAction = 'none';
     
     // Set drawing style
     ctx.strokeStyle = '#000000';
@@ -265,7 +266,7 @@ export function PenInputModal({ open, onClose, onRecognized, targetField, onReco
       return;
     }
     try {
-      (e.currentTarget as any).setPointerCapture?.(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
     } catch { /* setPointerCapture not supported — safe to ignore */ }
 
     setIsDrawing(true);
@@ -498,7 +499,7 @@ export function PenInputModal({ open, onClose, onRecognized, targetField, onReco
     } finally {
       setIsRecognizing(false);
     }
-  }, [hasDrawing, onRecognized, onClose, continuousMode, handleClear]);
+  }, [hasDrawing, onRecognized, onClose, continuousMode, handleClear, onRecognizedTargeted, targetField]);
 
   // Keyboard shortcuts
   useEffect(() => {

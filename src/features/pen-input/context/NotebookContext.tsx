@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * NotebookContext - Manages multi-page notebook state
  * 
@@ -94,6 +95,7 @@ export function NotebookProvider({ children }: NotebookProviderProps) {
   // Load pages on mount
   useEffect(() => {
     refreshPages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   /**

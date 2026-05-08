@@ -303,21 +303,9 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
 
   // Handle inline pen input recognition
   const handleInlinePenRecognized = (field: InlineTargetField, value: string) => {
-    console.log('[EntryForm Debug] handleInlinePenRecognized called');
-    console.log('[EntryForm Debug] Field:', field);
-    console.log('[EntryForm Debug] Value:', value);
-
-    if (field === 'description') {
-      console.log('[EntryForm Debug] Setting description to:', value);
-      setDescription(value);
-    } else if (field === 'party_name') {
-      console.log('[EntryForm Debug] Setting partyName to:', value);
-      setPartyName(value);
-    } else if (field === 'reference_no') {
-      console.log('[EntryForm Debug] Setting referenceNo to:', value);
-      setReferenceNo(value);
-    }
-    console.log('[EntryForm Debug] Closing inline pen input');
+    if (field === 'description') setDescription(value);
+    else if (field === 'party_name') setPartyName(value);
+    else if (field === 'reference_no') setReferenceNo(value);
     setInlinePenTarget(null);
   };
 

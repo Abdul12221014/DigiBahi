@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { db, LedgerEntry } from '@/lib/db';
 import { formatCurrency, formatDate } from '@/lib/gst';
 import { useSearchParams } from 'react-router-dom';
@@ -39,18 +39,18 @@ export function DailyReportView() {
         return acc;
     }, { sales: 0, expenses: 0, gstCollected: 0, gstPaid: 0, count: 0 });
 
-    useEffect(() => {
-        if (!loading && autoPrint) {
-            handlePrint();
-        }
-    }, [loading, autoPrint]);
-
-    const handlePrint = () => {
+    const handlePrint = useCallback(() => {
         if (loading) return;
         // Popup always uses browser print dialog.
         // USB printing is handled directly from the main Reports window.
         window.print();
-    };
+    }, [loading]);
+
+    useEffect(() => {
+        if (!loading && autoPrint) {
+            handlePrint();
+        }
+    }, [loading, autoPrint, handlePrint]);
 
     if (loading) return <div>Generating report...</div>;
 

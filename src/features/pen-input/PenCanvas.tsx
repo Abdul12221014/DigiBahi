@@ -190,8 +190,8 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     // For touch devices without pressure support, simulate based on touch area
     if (e.pointerType === 'touch' && pressure === 1) {
       // Use touch width/height to estimate pressure (larger touch = more pressure)
-      const touchWidth = (e as any).width || 0;
-      const touchHeight = (e as any).height || 0;
+      const touchWidth = e.width || 0;
+      const touchHeight = e.height || 0;
       const touchArea = Math.max(touchWidth, touchHeight);
       if (touchArea > 0) {
         // Normalize touch area to pressure (0.5 to 1.0 range)
@@ -346,6 +346,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     } finally {
       setRecognizing(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // NEW: Hybrid OCR Recognition Handler with Smart Cropping
@@ -418,7 +419,7 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     } finally {
       setRecognizing(false);
     }
-  }, [getContentBoundingBox]);
+  }, [getContentBoundingBox, canvasRef]);
 
   // Handle OCR correction confirm (from TextCorrectionOverlay)
   const handleCorrectionConfirm = useCallback(async (correctedBoxes: OCRResult[]) => {

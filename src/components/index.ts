@@ -5,7 +5,7 @@ export { ConsentModal } from './ConsentModal';
 // Layout components
 export { default as Dashboard } from './layout/Dashboard';
 export { default as LedgerTable } from './layout/LedgerTable';
-export { default as Auth } from './layout/Auth';
+
 
 // Form components
 export { default as EntryForm } from './forms/EntryForm';

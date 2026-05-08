@@ -10,12 +10,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ status: string }>('/health'),
-  getLedger: () => request<any[]>('/ledger'),
-  addLedger: (entry: any) => request<any>('/ledger', { method: 'POST', body: JSON.stringify(entry) }),
-  reports: () => request<any[]>('/reports'),
+  getLedger: () => request<Record<string, unknown>[]>('/ledger'),
+  addLedger: (entry: Record<string, unknown>) => request<Record<string, unknown>>('/ledger', { method: 'POST', body: JSON.stringify(entry) }),
+  reports: () => request<Record<string, unknown>[]>('/reports'),
   sync: (batch: unknown[]) => request<{ ok: boolean }>('/sync', { method: 'POST', body: JSON.stringify(batch) }),
 };
 
 export default api;
-
-

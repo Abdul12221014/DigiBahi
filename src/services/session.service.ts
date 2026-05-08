@@ -1,19 +1,44 @@
-const KEY = 'digbahi_session_v2';
+const KEY     = 'digbahi_session_v2';      // persisted across browser restarts
+const TAB_KEY = 'digbahi_session_tab_v2'; // cleared when tab closes (no-remember-me)
 
 interface StoredSession {
   token: string;
   expiresAt: string;
 }
 
-function saveSession(s: StoredSession): void {
-  localStorage.setItem(KEY, JSON.stringify(s));
+/**
+ * Save a session.
+ * persist=true  → localStorage (survives restarts, "remember me")
+ * persist=false → sessionStorage (cleared on tab close)
+ */
+function saveSession(s: StoredSession, persist = true): void {
+  if (persist) {
+    localStorage.setItem(KEY, JSON.stringify(s));
+    sessionStorage.removeItem(TAB_KEY);
+  } else {
+    sessionStorage.setItem(TAB_KEY, JSON.stringify(s));
+    localStorage.removeItem(KEY);
+  }
 }
 
+/**
+ * Load the stored session from either storage tier.
+ * Returns null if absent or expired; expired sessions are auto-cleared.
+ */
 function loadSession(): StoredSession | null {
   try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as StoredSession) : null;
-  } catch {
+    const raw = localStorage.getItem(KEY) ?? sessionStorage.getItem(TAB_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as StoredSession;
+    if (session.expiresAt && new Date(session.expiresAt).getTime() < Date.now()) {
+      localStorage.removeItem(KEY);
+      sessionStorage.removeItem(TAB_KEY);
+      return null;
+    }
+    return session;
+  } catch (_err: unknown) {
+    localStorage.removeItem(KEY);
+    sessionStorage.removeItem(TAB_KEY);
     return null;
   }
 }
@@ -51,7 +76,7 @@ export const sessionService = {
       const session: StoredSession = { token: data.session_token, expiresAt: data.expires_at };
       saveSession(session);
       return session;
-    } catch {
+    } catch (_err: unknown) {
       return null;
     }
   },
@@ -65,10 +90,11 @@ export const sessionService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_token: s.token }),
       });
-    } catch {
+    } catch (_err: unknown) {
       // best-effort — always clear local state
     }
     localStorage.removeItem(KEY);
+    sessionStorage.removeItem(TAB_KEY);
   },
 };
 

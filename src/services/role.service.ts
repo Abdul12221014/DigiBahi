@@ -14,7 +14,7 @@ export const roleService = {
     if (!res.ok) throw new Error('Failed to create role');
     return res.json();
   },
-  async assign(userId: number, roleId: number): Promise<{ ok: boolean } | any> {
+  async assign(userId: number, roleId: number): Promise<{ ok: boolean } | Record<string, unknown>> {
     const url = `${getApiUrl('/assign-role')}?user_id=${userId}&role_id=${roleId}`;
     const res = await fetch(url, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to assign role');

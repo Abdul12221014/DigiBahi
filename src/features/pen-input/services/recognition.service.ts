@@ -122,7 +122,7 @@ export class EnhancedRecognitionService {
   /**
    * Analyze image data for patterns and characteristics
    */
-  private static analyzeImage(imageData: ImageData): any {
+  private static analyzeImage(imageData: ImageData): { strokeDensity: number; hasVerticalLines: boolean; hasHorizontalLines: boolean; hasCircularShapes: boolean; width: number; height: number } {
     const { data, width, height } = imageData;
     let strokePixels = 0;
     const totalPixels = width * height;
@@ -224,10 +224,10 @@ export class EnhancedRecognitionService {
   /**
    * Generate recognition result based on analysis
    */
-  private static generateRecognitionResult(analysis: any, imageData: ImageData): OcrResult {
+  private static generateRecognitionResult(analysis: ReturnType<typeof EnhancedRecognitionService.analyzeImage>, imageData: ImageData): OcrResult {
     let recognizedText = '';
     let confidence = 0.5;
-    const words: Array<{ text: string; confidence: number; bbox: any }> = [];
+    const words: OcrResult['words'] = [];
     
     // Pattern-based recognition
     if (analysis.hasVerticalLines && analysis.hasHorizontalLines) {

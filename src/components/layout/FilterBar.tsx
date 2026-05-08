@@ -52,7 +52,7 @@ export function FilterBar({ filters, onFiltersChange, onReset }: FilterBarProps)
     if (debouncedSearch !== filters.search) {
       onFiltersChange({ ...filters, search: debouncedSearch });
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, filters, onFiltersChange]);
 
   // Sync local search with props
   useEffect(() => {

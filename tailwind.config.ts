@@ -104,6 +104,37 @@ export default {
           "60%": { transform: "translateX(6px)" },
           "75%": { transform: "translateX(-4px)" },
           "90%": { transform: "translateX(4px)" }
+        },
+        "overlay-enter": {
+          "0%": { opacity: "0", transform: "scale(0.96)" },
+          "100%": { opacity: "1", transform: "scale(1)" }
+        },
+        "dot-fill": {
+          "0%": { transform: "scale(0.6)", opacity: "0.5" },
+          "50%": { transform: "scale(1.25)" },
+          "100%": { transform: "scale(1.15)", opacity: "1" }
+        },
+        "dot-success": {
+          "0%": { transform: "scale(1)", boxShadow: "0 0 0 rgba(16,185,129,0)" },
+          "50%": { transform: "scale(1.4)", boxShadow: "0 0 12px rgba(16,185,129,0.7)" },
+          "100%": { transform: "scale(1.15)", boxShadow: "0 0 8px rgba(16,185,129,0.4)" }
+        },
+        "ripple": {
+          "0%": { transform: "scale(0)", opacity: "0.4" },
+          "100%": { transform: "scale(2.5)", opacity: "0" }
+        },
+        "wizard-slide-in": {
+          "0%": { opacity: "0", transform: "translateY(16px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" }
+        },
+        "check-bounce": {
+          "0%": { transform: "scale(0)", opacity: "0" },
+          "50%": { transform: "scale(1.2)" },
+          "100%": { transform: "scale(1)", opacity: "1" }
+        },
+        "spin-slow": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" }
         }
       },
       animation: {
@@ -116,6 +147,13 @@ export default {
         "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         "shake": "shake 0.5s ease-in-out",
+        "overlay-enter": "overlay-enter 0.4s cubic-bezier(0.16,1,0.3,1)",
+        "dot-fill": "dot-fill 0.2s ease-out",
+        "dot-success": "dot-success 0.4s ease-out",
+        "ripple": "ripple 0.5s ease-out",
+        "wizard-slide-in": "wizard-slide-in 0.35s ease-out",
+        "check-bounce": "check-bounce 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+        "spin-slow": "spin-slow 1s linear infinite",
       },
     },
   },

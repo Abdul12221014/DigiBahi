@@ -6,6 +6,8 @@
  */
 
 export class PalmRejectionCalibrator {
+    private _handler?: (e: PointerEvent) => void;
+    private _canvas?: HTMLCanvasElement;
     private touchSamples: Array<{
         type: 'stylus' | 'palm' | 'finger';
         width: number;
@@ -64,16 +66,16 @@ export class PalmRejectionCalibrator {
         canvas.addEventListener('pointerdown', handler);
 
         // Store handler for cleanup
-        (this as any)._handler = handler;
-        (this as any)._canvas = canvas;
+        this._handler = handler;
+        this._canvas = canvas as HTMLCanvasElement;
     }
 
     /**
      * Stop calibration
      */
     stopCalibration() {
-        const canvas = (this as any)._canvas;
-        const handler = (this as any)._handler;
+        const canvas = this._canvas;
+        const handler = this._handler;
 
         if (canvas && handler) {
             canvas.removeEventListener('pointerdown', handler);
@@ -189,7 +191,7 @@ export class PalmRejectionCalibrator {
 
 // Global instance for easy console access
 if (typeof window !== 'undefined') {
-    (window as any).palmCalibrator = new PalmRejectionCalibrator();
+    (window as Window & { palmCalibrator?: PalmRejectionCalibrator }).palmCalibrator = new PalmRejectionCalibrator();
     console.log('💡 Palm Rejection Calibrator loaded!');
     console.log('   Usage: palmCalibrator.startCalibration()');
 }

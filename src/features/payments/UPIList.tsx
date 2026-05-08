@@ -49,6 +49,7 @@ export function UPIList({ onRefresh }: UPIListProps) {
 
   useEffect(() => {
     filterIntents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intents, searchTerm, statusFilter]);
 
   const loadIntents = async () => {
