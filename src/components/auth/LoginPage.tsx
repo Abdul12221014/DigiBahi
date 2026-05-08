@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, createOwnerAccount } from '@/lib/db';
-import type { CompanySettings } from '@/lib/db';
 import { validatePasswordStrength } from '@/lib/auth';
 import {
   Eye, EyeOff, Loader2, AlertCircle,
@@ -598,26 +597,19 @@ function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () => void }) {
 
 export function LoginPage() {
   const { isFirstRun } = useAuth();
-  const [company,  setCompany]  = useState<CompanySettings | null>(null);
-  const [mounted,  setMounted]  = useState(false);
+  const [mounted, setMounted] = useState(false);
   // Default to signup when there are no users yet; signin otherwise
   const [mode, setMode] = useState<AuthMode>(() => (isFirstRun ? 'signup' : 'signin'));
 
-  // Keep mode in sync if isFirstRun flips (e.g. after companySettings load)
+  // Keep mode in sync if isFirstRun flips
   useEffect(() => {
     if (isFirstRun) setMode('signup');
   }, [isFirstRun]);
 
   useEffect(() => { requestAnimationFrame(() => setMounted(true)); }, []);
 
-  useEffect(() => {
-    db.companySettings.toArray()
-      .then(s => { if (s.length > 0) setCompany(s[0]); })
-      .catch(() => {});
-  }, []);
-
-  const businessName   = company?.businessName ?? 'DigiBahi';
-  const businessInitial = businessName.charAt(0).toUpperCase();
+  const businessName    = 'DigiBahi';
+  const businessInitial = 'D';
 
   return (
     <div
