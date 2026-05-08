@@ -5,9 +5,49 @@ import type { AnalyticsEvent } from './analytics';
 export interface User {
   id?: number;
   username: string;
-  pinHash: string;
+  email?: string;
+  phone?: string;
+  displayName?: string;
+  /** Primary credential hash (PBKDF2-SHA256). All new accounts set this. */
+  passwordHash: string;
+  /** Base64-encoded 16-byte PBKDF2 salt. */
+  passwordSalt: string;
+  /** Set true for accounts migrated from PIN — UI prompts a one-time password reset. */
+  mustResetPassword?: boolean;
+  /** Legacy PIN hash — retained during migration window, cleared after password upgrade. */
+  pinHash?: string;
+  /** Legacy PIN salt — retained during migration window, cleared after password upgrade. */
+  pinSalt?: string;
   role: 'owner' | 'accountant' | 'employee';
+  isActive: boolean;
   createdAt: Date;
+  lastLoginAt?: string;
+  failedAttempts?: number;
+  lockedUntil?: string | null;
+}
+
+/** Immutable record of every login attempt — success and failure — for audit trails. */
+export interface LoginAttempt {
+  id?: number;
+  userId?: number;
+  /** Sanitized identifier — never stores the credential itself. */
+  identifier: string;
+  success: boolean;
+  timestamp: string;
+  source: 'backend' | 'offline';
+  deviceId: string;
+  failureReason?: 'wrong_password' | 'account_locked' | 'user_not_found' | 'server_error';
+}
+
+/** Structured audit trail for DPDP Act compliance. */
+export interface AuditLogEntry {
+  id?: number;
+  userId: number;
+  action: string;
+  resource?: string;
+  details?: string;
+  timestamp: string;
+  deviceId: string;
 }
 
 export interface LedgerEntry {
@@ -18,27 +58,21 @@ export interface LedgerEntry {
   type: 'sale' | 'purchase' | 'expense' | 'receipt';
   gstRate: number;
   gstAmount: number;
-  // CHANGED: userId → created_by (nullable, matches backend)
   created_by?: number | null;
-  // CHANGED: createdAt: Date → created_at: string (ISO format, matches backend)
   created_at: string;
-  // NEW FIELDS (Week-1 Ledger Enhancement)
   party_name?: string;
   reference_no?: string;
   tags?: string;
   is_active?: boolean;
   deleted_at?: string | null;
   updated_at?: string;
-  // Optional inventory fields (keep for backward compat)
   itemId?: number;
   qty?: number;
-  // Legacy fields (keep for backward compat during migration)
-  userId?: number;  // Deprecated - use created_by
-  createdAt?: Date; // Deprecated - use created_at
-  // Sync-ready fields (Phase 7)
-  customer_id?: number;        // FK → customerContacts.id
-  synced_at?: string | null;   // null = needs backend sync
-  remote_id?: string | null;   // server-assigned ID after sync
+  userId?: number;
+  createdAt?: Date;
+  customer_id?: number;
+  synced_at?: string | null;
+  remote_id?: string | null;
 }
 
 export interface GSTRecord {
@@ -67,9 +101,8 @@ export interface CustomerContact {
   gstin?: string;
   created_at: string;
   updated_at: string;
-  // Sync-ready fields (Phase 7)
-  synced_at?: string | null;   // null = needs backend sync
-  remote_id?: string | null;   // server-assigned ID after sync
+  synced_at?: string | null;
+  remote_id?: string | null;
 }
 
 export interface CreditEntry {
@@ -95,26 +128,26 @@ export class DigBahiDB extends Dexie {
   gstRecords!: Table<GSTRecord>;
   upiIntents!: Table<UPIIntent>;
   syncQueue!: Table<UPIReconcileRequest>;
-  items!: Table<any>;
-  stockTxns!: Table<any>;
+  items!: Table<Record<string, unknown>>;
+  stockTxns!: Table<Record<string, unknown>>;
   companySettings!: Table<CompanySettings>;
   customerContacts!: Table<CustomerContact>;
   creditEntries!: Table<CreditEntry>;
   analyticsEvents!: Table<AnalyticsEvent>;
+  loginAttempts!: Table<LoginAttempt>;
+  auditLog!: Table<AuditLogEntry>;
 
   constructor() {
     super('digbahi');
-    
-    // Version 2: Initial schema
+
     this.version(2).stores({
       users: '++id, username, role',
       ledger: '++id, date, type, userId, createdAt',
       gstRecords: '++id, ledgerId, status, createdAt',
       upiIntents: 'id, upiId, status, createdAt',
-      syncQueue: 'id, txnRef, timestamp'
+      syncQueue: 'id, txnRef, timestamp',
     });
-    
-    // Version 3: Add inventory tables
+
     this.version(3).stores({
       users: '++id, username, role',
       ledger: '++id, date, type, userId, createdAt',
@@ -122,31 +155,19 @@ export class DigBahiDB extends Dexie {
       upiIntents: 'id, upiId, status, createdAt',
       syncQueue: 'id, txnRef, timestamp',
       items: '++id,nameKey,sku',
-      stockTxns: '++id,itemId,date,refLedgerId'
-    }).upgrade(() => {
-      // Migration: create inventory tables if they don't exist
-      // No data transformation needed
+      stockTxns: '++id,itemId,date,refLedgerId',
     });
-    
-    // Version 5: Fix invalid compound indexes
+
     this.version(5).stores({
       users: '++id, username, role',
       ledger: '++id, date, type, userId, createdAt',
       gstRecords: '++id, ledgerId, status, createdAt',
       upiIntents: 'id, upiId, status, createdAt',
       syncQueue: 'id, txnRef, timestamp',
-      // OPTIMIZED INVENTORY INDEXES - Fixed compound indexes
       items: '++id,nameKey,sku,gstRate,unit,createdAt',
-      stockTxns: '++id,itemId,date,refLedgerId,type'
-    }).upgrade(async (tx) => {
-      // Safe migration - no data loss, just adds indexes
-      console.log('🚀 Upgrading to optimized database indexes...');
-      console.log('✅ Added individual indexes for faster queries');
-      console.log('✅ Added search-optimized indexes');
-      console.log('✅ Added stock transaction indexes');
+      stockTxns: '++id,itemId,date,refLedgerId,type',
     });
-    
-    // Version 6: Add company settings and customer contacts
+
     this.version(6).stores({
       users: '++id, username, role',
       ledger: '++id, date, type, userId, createdAt',
@@ -156,12 +177,9 @@ export class DigBahiDB extends Dexie {
       items: '++id,nameKey,sku,gstRate,unit,createdAt',
       stockTxns: '++id,itemId,date,refLedgerId,type',
       companySettings: '++id',
-      customerContacts: '++id, phone, name'
-    }).upgrade(async (tx) => {
-      console.log('🚀 Adding company settings and customer contacts...');
+      customerContacts: '++id, phone, name',
     });
-    
-    // Version 7: Add credit entries
+
     this.version(7).stores({
       users: '++id, username, role',
       ledger: '++id, date, type, userId, createdAt',
@@ -172,12 +190,9 @@ export class DigBahiDB extends Dexie {
       stockTxns: '++id,itemId,date,refLedgerId,type',
       companySettings: '++id',
       customerContacts: '++id, phone, name',
-      creditEntries: '++id, invoiceNumber, customerPhone, status'
-    }).upgrade(async (tx) => {
-      console.log('🚀 Adding credit entries table...');
+      creditEntries: '++id, invoiceNumber, customerPhone, status',
     });
 
-    // Version 8: Analytics events + sync-ready indexes
     this.version(8).stores({
       users:            '++id, username, role',
       ledger:           '++id, date, type, party_name, customer_id, synced_at',
@@ -190,13 +205,8 @@ export class DigBahiDB extends Dexie {
       customerContacts: '++id, phone, name, synced_at, remote_id',
       creditEntries:    '++id, invoiceNumber, customerPhone, status',
       analyticsEvents:  '++id, name, synced, timestamp, session_id',
-    }).upgrade(async () => {
-      console.log('v8: Analytics events table + sync-ready indexes added');
     });
 
-    // Version 9: Backfill deprecated userId→created_by and createdAt→created_at on
-    // existing ledger rows so they pass backend sync type checks.
-    // Adds created_by to the index so user-isolation filtering is fast.
     this.version(9).stores({
       users:            '++id, username, role',
       ledger:           '++id, date, type, party_name, customer_id, synced_at, created_by',
@@ -210,196 +220,262 @@ export class DigBahiDB extends Dexie {
       creditEntries:    '++id, invoiceNumber, customerPhone, status',
       analyticsEvents:  '++id, name, synced, timestamp, session_id',
     }).upgrade(async (tx) => {
-      // Migrate all ledger rows that still have the legacy fields
-      await tx.table('ledger').toCollection().modify((entry: any) => {
-        // userId → created_by
+      await tx.table('ledger').toCollection().modify((entry: Record<string, unknown>) => {
         if (entry.created_by == null && entry.userId != null) {
           entry.created_by = entry.userId;
         }
-        // createdAt (Date) → created_at (ISO string)
         if (!entry.created_at && entry.createdAt) {
           entry.created_at =
             entry.createdAt instanceof Date
               ? entry.createdAt.toISOString()
               : String(entry.createdAt);
         }
-        // Ensure is_active is set (old rows lack it)
         if (entry.is_active == null) {
           entry.is_active = true;
         }
       });
-      console.log('v9: Backfilled userId→created_by and createdAt→created_at on ledger rows');
+    });
+
+    this.version(10).stores({
+      users:            '++id, username, role',
+      ledger:           '++id, date, type, party_name, customer_id, synced_at, created_by',
+      gstRecords:       '++id, ledgerId, status, createdAt',
+      upiIntents:       'id, upiId, status, createdAt',
+      syncQueue:        'id, txnRef, timestamp',
+      items:            '++id,nameKey,sku,gstRate,unit,createdAt',
+      stockTxns:        '++id,itemId,date,refLedgerId,type',
+      companySettings:  '++id',
+      customerContacts: '++id, phone, name, synced_at, remote_id',
+      creditEntries:    '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:  '++id, name, synced, timestamp, session_id',
+    });
+
+    // v11: Password-based auth (replaces PIN kiosk system).
+    // Extends users with email, phone, displayName, isActive, and audit fields.
+    // Adds loginAttempts + auditLog tables for DPDP compliance.
+    // Migration copies pinHash→passwordHash so existing users remain functional.
+    this.version(11).stores({
+      users:            '++id, username, email, phone, role, isActive',
+      ledger:           '++id, date, type, party_name, customer_id, synced_at, created_by',
+      gstRecords:       '++id, ledgerId, status, createdAt',
+      upiIntents:       'id, upiId, status, createdAt',
+      syncQueue:        'id, txnRef, timestamp',
+      items:            '++id,nameKey,sku,gstRate,unit,createdAt',
+      stockTxns:        '++id,itemId,date,refLedgerId,type',
+      companySettings:  '++id',
+      customerContacts: '++id, phone, name, synced_at, remote_id',
+      creditEntries:    '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:  '++id, name, synced, timestamp, session_id',
+      loginAttempts:    '++id, userId, timestamp, success',
+      auditLog:         '++id, userId, timestamp, action',
+    }).upgrade(async (tx) => {
+      await tx.table('users').toCollection().modify((user: Record<string, unknown>) => {
+        if (user.isActive == null) user.isActive = true;
+        if (user.failedAttempts == null) user.failedAttempts = 0;
+
+        // Copy PIN credentials to password fields so existing accounts keep working.
+        // mustResetPassword=true signals the UI to prompt a proper password after login.
+        if (!user.passwordHash && user.pinHash) {
+          user.passwordHash = user.pinHash;
+          user.mustResetPassword = true;
+        }
+        if (!user.passwordSalt && user.pinSalt) {
+          user.passwordSalt = user.pinSalt;
+        }
+        // Legacy SHA-256 accounts have no salt — they must reset.
+        if (!user.passwordHash) user.passwordHash = '';
+        if (!user.passwordSalt) user.passwordSalt = '';
+        if (!user.passwordHash || !user.passwordSalt) user.mustResetPassword = true;
+      });
     });
   }
 }
 
 export const db = new DigBahiDB();
 
-/**
- * Initialize DB schema only. Does NOT create a default user.
- * On first run (no users), the app shows a setup wizard where the owner
- * chooses their own PIN — no well-known default PIN is ever written to disk.
- */
 export async function initializeDB() {
-  // Schema is created by Dexie versioning above.
-  // No auto-user creation — prevents "PIN 1234" from shipping to production kiosks.
+  // Schema created by Dexie versioning. No auto-user creation.
 }
 
-/** Returns true if no users exist yet — triggers first-run setup UI. */
 export async function isFirstRun(): Promise<boolean> {
   return (await db.users.count()) === 0;
 }
 
-/** Create the owner account during first-run setup. */
-export async function createOwnerAccount(username: string, pin: string): Promise<void> {
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(pin));
-  const pinHash = Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+/** Create the owner account during first-run setup with a full password (not PIN). */
+export async function createOwnerAccount(username: string, password: string, email?: string): Promise<void> {
+  const { passwordHash, passwordSalt } = await _derivePasswordHash(password);
   await db.users.add({
-    username,
-    pinHash,
+    username: username.trim().toLowerCase(),
+    email: email?.trim().toLowerCase(),
+    passwordHash,
+    passwordSalt,
+    mustResetPassword: false,
     role: 'owner',
+    isActive: true,
     createdAt: new Date(),
+    failedAttempts: 0,
   });
 }
 
-// UPI Intent CRUD operations
+/** Create any user account (owner, accountant, employee) with a password. */
+export async function createUserAccount(options: {
+  username: string;
+  password: string;
+  role: 'owner' | 'accountant' | 'employee';
+  displayName?: string;
+  email?: string;
+  phone?: string;
+}): Promise<number> {
+  const { passwordHash, passwordSalt } = await _derivePasswordHash(options.password);
+  return db.users.add({
+    username: options.username.trim().toLowerCase(),
+    displayName: options.displayName?.trim(),
+    email: options.email?.trim().toLowerCase(),
+    phone: options.phone?.trim(),
+    passwordHash,
+    passwordSalt,
+    mustResetPassword: false,
+    role: options.role,
+    isActive: true,
+    createdAt: new Date(),
+    failedAttempts: 0,
+  });
+}
+
+async function _derivePasswordHash(password: string): Promise<{ passwordHash: string; passwordSalt: string }> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 600_000, hash: 'SHA-256' },
+    keyMaterial,
+    256,
+  );
+  const passwordHash = Array.from(new Uint8Array(derived))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  const passwordSalt = btoa(String.fromCharCode(...salt));
+  return { passwordHash, passwordSalt };
+}
+
+// ─── UPI Intent CRUD ─────────────────────────────────────────────────────────
+
 export async function saveUPIIntent(intent: UPIIntent): Promise<void> {
   await db.upiIntents.put(intent);
 }
 
 export async function updateUPIIntentStatus(id: string, status: UPIIntent['status']): Promise<void> {
-  await db.upiIntents.update(id, { 
-    status, 
-    updatedAt: Date.now() 
-  });
+  await db.upiIntents.update(id, { status, updatedAt: Date.now() });
 }
 
 export async function listUPIIntents(): Promise<UPIIntent[]> {
-  return await db.upiIntents.orderBy('createdAt').reverse().toArray();
+  return db.upiIntents.orderBy('createdAt').reverse().toArray();
 }
 
 export async function getUPIIntent(id: string): Promise<UPIIntent | undefined> {
-  return await db.upiIntents.get(id);
+  return db.upiIntents.get(id);
 }
 
-// Sync Queue operations
+// ─── Sync Queue ───────────────────────────────────────────────────────────────
+
 export async function enqueueReconcile(request: UPIReconcileRequest): Promise<void> {
   await db.syncQueue.put(request);
 }
 
 export async function getSyncQueue(): Promise<UPIReconcileRequest[]> {
-  return await db.syncQueue.orderBy('timestamp').toArray();
+  return db.syncQueue.orderBy('timestamp').toArray();
 }
 
 export async function removeFromSyncQueue(id: string): Promise<void> {
   await db.syncQueue.delete(id);
 }
 
-// Company Settings operations
+// ─── Company Settings ─────────────────────────────────────────────────────────
+
 export async function getCompanySettings(): Promise<CompanySettings | null> {
-  const settings = await db.companySettings.toCollection().first();
-  return settings || null;
+  return (await db.companySettings.toCollection().first()) ?? null;
 }
 
-export async function saveCompanySettings(settings: Omit<CompanySettings, 'id' | 'updated_at'>): Promise<number> {
+export async function saveCompanySettings(
+  settings: Omit<CompanySettings, 'id' | 'updated_at'>,
+): Promise<number> {
   const existing = await db.companySettings.toCollection().first();
   const now = new Date().toISOString();
-  
   if (existing) {
-    await db.companySettings.update(existing.id!, {
-      ...settings,
-      updated_at: now
-    });
+    await db.companySettings.update(existing.id!, { ...settings, updated_at: now });
     return existing.id!;
-  } else {
-    return await db.companySettings.add({
-      ...settings,
-      updated_at: now
-    });
   }
+  return db.companySettings.add({ ...settings, updated_at: now });
 }
 
-// Customer Contacts operations
+// ─── Customer Contacts ────────────────────────────────────────────────────────
+
 export async function getAllCustomerContacts(): Promise<CustomerContact[]> {
-  return await db.customerContacts.orderBy('name').toArray();
+  return db.customerContacts.orderBy('name').toArray();
 }
 
-export async function getRecentCustomerContacts(limit: number = 10): Promise<CustomerContact[]> {
-  return await db.customerContacts.orderBy('updated_at').reverse().limit(limit).toArray();
+export async function getRecentCustomerContacts(limit = 10): Promise<CustomerContact[]> {
+  return db.customerContacts.orderBy('updated_at').reverse().limit(limit).toArray();
 }
 
-export async function searchCustomerContacts(query: string, limit: number = 10): Promise<CustomerContact[]> {
+export async function searchCustomerContacts(query: string, limit = 10): Promise<CustomerContact[]> {
   if (!query) return getRecentCustomerContacts(limit);
-  const lowerQuery = query.toLowerCase();
-  
-  // Natively filter via IndexedDB for scalable substring matches
-  return await db.customerContacts
-    .filter(c => c.name.toLowerCase().includes(lowerQuery) || c.phone.includes(query))
+  const lq = query.toLowerCase();
+  return db.customerContacts
+    .filter(c => c.name.toLowerCase().includes(lq) || c.phone.includes(query))
     .limit(limit)
     .toArray();
 }
 
 export async function getCustomerContactByPhone(phone: string): Promise<CustomerContact | undefined> {
-  return await db.customerContacts.where('phone').equals(phone).first();
+  return db.customerContacts.where('phone').equals(phone).first();
 }
 
-export async function saveCustomerContact(contact: Omit<CustomerContact, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+export async function saveCustomerContact(
+  contact: Omit<CustomerContact, 'id' | 'created_at' | 'updated_at'>,
+): Promise<number> {
   const now = new Date().toISOString();
   const existing = await getCustomerContactByPhone(contact.phone);
-  
   if (existing) {
-    await db.customerContacts.update(existing.id!, {
-      ...contact,
-      updated_at: now
-    });
+    await db.customerContacts.update(existing.id!, { ...contact, updated_at: now });
     return existing.id!;
-  } else {
-    return await db.customerContacts.add({
-      ...contact,
-      created_at: now,
-      updated_at: now
-    });
   }
+  return db.customerContacts.add({ ...contact, created_at: now, updated_at: now });
 }
 
-// Credit Entries operations
+// ─── Credit Entries ───────────────────────────────────────────────────────────
+
 export async function getAllCreditEntries(): Promise<CreditEntry[]> {
-  return await db.creditEntries.orderBy('created_at').reverse().toArray();
+  return db.creditEntries.orderBy('created_at').reverse().toArray();
 }
 
 export async function getCreditEntryByInvoice(invoiceNumber: string): Promise<CreditEntry | undefined> {
-  return await db.creditEntries.where('invoiceNumber').equals(invoiceNumber).first();
+  return db.creditEntries.where('invoiceNumber').equals(invoiceNumber).first();
 }
 
 export async function getPendingCreditEntries(): Promise<CreditEntry[]> {
-  return await db.creditEntries.where('status').equals('pending').toArray();
+  return db.creditEntries.where('status').equals('pending').toArray();
 }
 
-export async function createCreditEntry(entry: Omit<CreditEntry, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+export async function createCreditEntry(
+  entry: Omit<CreditEntry, 'id' | 'created_at' | 'updated_at'>,
+): Promise<number> {
   const now = new Date().toISOString();
-  return await db.creditEntries.add({
-    ...entry,
-    created_at: now,
-    updated_at: now
-  });
+  return db.creditEntries.add({ ...entry, created_at: now, updated_at: now });
 }
 
 export async function updateCreditEntry(id: number, updates: Partial<CreditEntry>): Promise<void> {
-  const now = new Date().toISOString();
-  await db.creditEntries.update(id, {
-    ...updates,
-    updated_at: now
-  });
+  await db.creditEntries.update(id, { ...updates, updated_at: new Date().toISOString() });
 }
 
 export async function markCreditAsPaid(id: number): Promise<void> {
   const now = new Date().toISOString();
-  await db.creditEntries.update(id, {
-    status: 'paid',
-    paidAt: now,
-    updated_at: now
-  });
+  await db.creditEntries.update(id, { status: 'paid', paidAt: now, updated_at: now });
 }
+
+

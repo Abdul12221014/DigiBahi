@@ -2,11 +2,12 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 from secrets import token_urlsafe
+from typing import Optional
 import hashlib
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session as DBSession
 
 from ...db.base import get_db
@@ -52,8 +53,29 @@ def _clear_attempts(device_id: str) -> None:
 # ─── Models ───────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    pin: str = Field(..., min_length=4, max_length=8, pattern=r'^\d+$')
+    # Modern password-based login
+    password: Optional[str] = Field(None, min_length=1, max_length=256)
+    identifier: Optional[str] = Field(None, max_length=256)  # email or username
+
+    # Legacy PIN-based login (kept for backward compat)
+    pin: Optional[str] = Field(None, min_length=4, max_length=256)
+    username: Optional[str] = Field(None, max_length=128)
+
     device_id: str = Field(..., min_length=1, max_length=128)
+
+    @model_validator(mode='after')
+    def at_least_one_credential(self) -> 'LoginRequest':
+        if not self.password and not self.pin:
+            raise ValueError('Either password or pin must be provided')
+        return self
+
+    @property
+    def effective_password(self) -> str:
+        return self.password or self.pin or ''
+
+    @property
+    def effective_identifier(self) -> Optional[str]:
+        return self.identifier or self.username
 
 
 class TokenRequest(BaseModel):
@@ -76,32 +98,53 @@ def session_login(body: LoginRequest, db: DBSession = Depends(get_db)):
     # Check lockout before any DB query so we don't reveal user existence
     _check_lockout(device_id)
 
-    user = db.query(User).filter(User.device_id == device_id).first()
-    if not user or not user.pin_hash or _hash_pin(body.pin) != user.pin_hash:
-        _record_failure(device_id)
-        raise HTTPException(status_code=401, detail="Invalid device or PIN")
+    try:
+        # Look up user by identifier (modern path) or device_id (legacy path)
+        user = None
+        if body.effective_identifier:
+            user = db.query(User).filter(User.name == body.effective_identifier).first()
+        if user is None:
+            user = db.query(User).filter(User.device_id == device_id).first()
 
-    # Successful login — clear failure counter
-    _clear_attempts(device_id)
+        # Verify credential against stored SHA-256 PIN hash
+        credential = body.effective_password
+        credential_valid = (
+            user is not None
+            and user.pin_hash is not None
+            and _hash_pin(credential) == user.pin_hash
+        )
 
-    expires = datetime.utcnow() + timedelta(minutes=SESSION_TTL_MIN)
-    token = token_urlsafe(32)
-    s = SessionModel(
-        user_id=user.id,
-        session_token=token,
-        device_id=device_id,
-        expires_at=expires,
-    )
-    db.add(s)
-    db.commit()
-    db.refresh(s)
-    logger.info("User %s logged in from device %s", user.id, device_id)
-    return {
-        "session_token": token,
-        "expires_at": expires.isoformat(),
-        "user_id": user.id,
-        "role": user.role,
-    }
+        if not credential_valid:
+            _record_failure(device_id)
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # Successful — clear failure counter and issue session token
+        _clear_attempts(device_id)
+
+        expires = datetime.utcnow() + timedelta(minutes=SESSION_TTL_MIN)
+        token = token_urlsafe(32)
+        s = SessionModel(
+            user_id=user.id,
+            session_token=token,
+            device_id=device_id,
+            expires_at=expires,
+        )
+        db.add(s)
+        db.commit()
+        db.refresh(s)
+        logger.info("User %s logged in from device %s", user.id, device_id)
+        return {
+            "session_token": token,
+            "expires_at": expires.isoformat(),
+            "user_id": user.id,
+            "role": getattr(user, 'role', 'employee'),
+            "username": user.name,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Backend login DB error (falling through to local auth): %s", exc)
+        raise HTTPException(status_code=401, detail="Backend auth unavailable")
 
 
 @router.post("/logout")

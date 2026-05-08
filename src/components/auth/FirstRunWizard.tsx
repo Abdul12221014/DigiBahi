@@ -1,235 +1,222 @@
-import React, { useState } from 'react';
-import { NumericKeypad } from './NumericKeypad';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isFirstRun, createOwnerAccount } from '@/lib/db';
-import { db } from '@/lib/db';
+import { createOwnerAccount, db } from '@/lib/db';
+import { validatePasswordStrength } from '@/lib/auth';
 import { toast } from 'sonner';
-import { ChevronRight, Check, Store, KeyRound } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Eye, EyeOff, Loader2, AlertCircle, Shield } from 'lucide-react';
 
-type Step = 'welcome' | 'business' | 'pin' | 'confirm' | 'done';
+function StrengthBar({ password }: { password: string }) {
+  if (!password) return null;
+  const v = validatePasswordStrength(password);
+  const { color, width, label } = {
+    'very-strong': { color: '#059669', width: '100%', label: 'Very strong' },
+    'strong':      { color: '#22c55e', width: '75%',  label: 'Strong' },
+    'fair':        { color: '#f59e0b', width: '50%',  label: 'Fair' },
+    'weak':        { color: '#ef4444', width: '25%',  label: 'Weak' },
+  }[v.strength];
+  return (
+    <div className="mt-2">
+      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-300" style={{ width, background: color }} />
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-xs" style={{ color }}>{label} password</span>
+        {v.reason && <span className="text-xs text-white/40">{v.reason}</span>}
+      </div>
+    </div>
+  );
+}
 
-const MIN_PIN_LENGTH = 4;
-const MAX_PIN_LENGTH = 6;
+const inputCls =
+  'w-full h-12 px-4 rounded-xl bg-white/8 border border-white/15 text-white text-base ' +
+  'placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ' +
+  'focus:border-emerald-400/40 transition disabled:opacity-50';
 
 export function FirstRunWizard() {
   const { completeFirstRun, login } = useAuth();
 
-  const [step, setStep] = useState<Step>('welcome');
   const [businessName, setBusinessName] = useState('');
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinMismatch, setPinMismatch] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const handlePinDigit = (d: string) => {
-    if (step === 'pin') {
-      setPin(prev => (prev + d).slice(0, MAX_PIN_LENGTH));
-    } else {
-      setConfirmPin(prev => (prev + d).slice(0, MAX_PIN_LENGTH));
-    }
-  };
+  const emailRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { emailRef.current?.focus(); }, []);
 
-  const handlePinDelete = () => {
-    if (step === 'pin') setPin(prev => prev.slice(0, -1));
-    else setConfirmPin(prev => prev.slice(0, -1));
-  };
+  const safeEmail = email.trim().toLowerCase();
+  const safeBusiness = businessName.trim().slice(0, 60) || 'My Business';
+  const usernameFromEmail = safeEmail.split('@')[0].replace(/[^a-z0-9_.-]/gi, '').toLowerCase() || 'owner';
 
-  const handlePinSubmit = () => {
-    if (step === 'pin') {
-      if (pin.length < MIN_PIN_LENGTH) return;
-      setStep('confirm');
-    } else {
-      // Confirm step
-      if (confirmPin !== pin) {
-        setPinMismatch(true);
-        setConfirmPin('');
-        setTimeout(() => setPinMismatch(false), 1500);
-        return;
-      }
-      handleFinish();
-    }
-  };
+  const isValid =
+    businessName.trim().length >= 1 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail) &&
+    validatePasswordStrength(password).valid &&
+    password === confirmPassword;
 
-  const currentPinValue = step === 'pin' ? pin : confirmPin;
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
 
-  const handleFinish = async () => {
-    if (saving) return;
+    if (!businessName.trim()) { setError('Business name is required'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) { setError('Enter a valid email address'); return; }
+
+    const pv = validatePasswordStrength(password);
+    if (!pv.valid) { setError(pv.reason!); return; }
+    if (password !== confirmPassword) { setError("Passwords don't match"); return; }
+
     setSaving(true);
     try {
-      await createOwnerAccount('owner', pin);
-      // Also save business name to CompanySettings
+      await createOwnerAccount(usernameFromEmail, password, safeEmail);
       await db.companySettings.put({
         id: 1,
-        businessName: businessName.trim() || 'My Business',
+        businessName: safeBusiness,
         updated_at: new Date().toISOString(),
       });
-      setStep('done');
+
+      const result = await login(safeEmail, password);
+
+      // Always transition away from the wizard — the account exists in IndexedDB now.
+      // If login succeeded, AuthContext sets isAuthenticated=true and the main app mounts.
+      // If login somehow failed (network glitch etc.), send the user to the login page
+      // with a clear success toast so they know to sign in with the credentials they just set.
+      completeFirstRun();
+
+      if (!result.ok) {
+        toast.success('Account created! Sign in with your email and password.');
+      }
     } catch (err) {
       console.error('Setup failed:', err);
       toast.error('Setup failed. Please try again.');
     } finally {
       setSaving(false);
     }
-  };
+  }, [businessName, safeEmail, password, confirmPassword, usernameFromEmail, safeBusiness, completeFirstRun, login]);
 
-  const handleComplete = async () => {
-    completeFirstRun();
-    // Auto-login the just-created owner
-    await login('owner', pin);
-  };
-
-  // ─── Render steps ──────────────────────────────────────────────────────
-
-  if (step === 'welcome') {
-    return (
-      <WizardShell>
-        <div className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center mb-6 shadow-xl">
-          <Store className="w-10 h-10 text-white" />
-        </div>
-        <h1 className="text-3xl font-bold text-white mb-2">Welcome to DigiBahi</h1>
-        <p className="text-white/60 text-center mb-10 max-w-xs">
-          Your offline-first accounting system. Let's set up your business in 2 minutes.
-        </p>
-        <button
-          onClick={() => setStep('business')}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-8 py-4 rounded-2xl text-lg transition-colors shadow-lg"
-        >
-          Get Started <ChevronRight className="w-5 h-5" />
-        </button>
-      </WizardShell>
-    );
-  }
-
-  if (step === 'business') {
-    return (
-      <WizardShell>
-        <StepIndicator current={1} total={3} />
-        <Store className="w-10 h-10 text-emerald-400 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Your Business Name</h2>
-        <p className="text-white/50 text-sm mb-8">This will appear on invoices and receipts.</p>
-        <Input
-          type="text"
-          autoFocus
-          value={businessName}
-          onChange={e => setBusinessName(e.target.value)}
-          placeholder="e.g. Sharma General Store"
-          maxLength={60}
-          className="bg-white/10 border-white/20 text-white placeholder:text-white/30 text-lg h-14 rounded-xl mb-6 text-center"
-          onKeyDown={e => { if (e.key === 'Enter' && businessName.trim()) setStep('pin'); }}
-        />
-        <button
-          disabled={!businessName.trim()}
-          onClick={() => setStep('pin')}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold px-8 py-4 rounded-2xl text-lg transition-colors shadow-lg"
-        >
-          Continue <ChevronRight className="w-5 h-5" />
-        </button>
-      </WizardShell>
-    );
-  }
-
-  if (step === 'pin' || step === 'confirm') {
-    return (
-      <WizardShell>
-        <StepIndicator current={step === 'pin' ? 2 : 3} total={3} />
-        <KeyRound className="w-10 h-10 text-emerald-400 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-1">
-          {step === 'pin' ? 'Create Your Owner PIN' : 'Confirm Your PIN'}
-        </h2>
-        <p className="text-white/50 text-sm mb-6">
-          {step === 'pin'
-            ? `Choose a ${MIN_PIN_LENGTH}–${MAX_PIN_LENGTH}-digit PIN to unlock your kiosk.`
-            : 'Enter the same PIN again to confirm.'}
-        </p>
-
-        {/* PIN dots */}
-        <div className={['flex gap-3 mb-3', pinMismatch ? 'animate-shake' : ''].join(' ')}>
-          {Array.from({ length: MAX_PIN_LENGTH }).map((_, i) => (
-            <div
-              key={i}
-              className={[
-                'w-4 h-4 rounded-full border-2 transition-all duration-150',
-                i < currentPinValue.length
-                  ? (pinMismatch ? 'bg-red-400 border-red-400' : 'bg-white border-white scale-110')
-                  : 'bg-transparent border-white/30',
-              ].join(' ')}
-            />
-          ))}
-        </div>
-
-        {pinMismatch && (
-          <p className="text-red-400 text-sm mb-3">PINs don't match. Try again.</p>
-        )}
-
-        <div className="mb-6" />
-
-        <NumericKeypad
-          onDigit={handlePinDigit}
-          onDelete={handlePinDelete}
-          onSubmit={handlePinSubmit}
-          disabled={saving}
-          showSubmit={currentPinValue.length >= MIN_PIN_LENGTH}
-        />
-
-        {step === 'confirm' && (
-          <button
-            onClick={() => { setStep('pin'); setPin(''); setConfirmPin(''); }}
-            className="mt-4 text-white/40 text-sm hover:text-white/70"
+  return (
+    <div
+      className="fixed inset-0 z-[10000] flex flex-col items-center justify-center p-6 overflow-y-auto"
+      style={{ background: 'linear-gradient(160deg, #0f172a 0%, #0d2318 55%, #052e16 100%)' }}
+    >
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-xl"
+            style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
           >
-            ← Change PIN
-          </button>
-        )}
-      </WizardShell>
-    );
-  }
-
-  if (step === 'done') {
-    return (
-      <WizardShell>
-        <div className="w-20 h-20 rounded-full bg-emerald-600 flex items-center justify-center mb-6 shadow-xl">
-          <Check className="w-10 h-10 text-white" />
+            <span className="text-white font-bold text-2xl">D</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white text-center">Create your account</h1>
+          <p className="text-white/40 text-sm text-center mt-1">Set up DigiBahi for your business</p>
         </div>
-        <h2 className="text-3xl font-bold text-white mb-2">All Set!</h2>
-        <p className="text-white/60 text-center mb-2">
-          <span className="text-white font-medium">{businessName}</span> is ready.
-        </p>
-        <p className="text-white/40 text-sm mb-10">
-          You can add employees and accountants from Settings.
-        </p>
-        <button
-          onClick={handleComplete}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-8 py-4 rounded-2xl text-lg transition-colors shadow-lg"
-        >
-          Open DigiBahi <ChevronRight className="w-5 h-5" />
-        </button>
-      </WizardShell>
-    );
-  }
 
-  return null;
-}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Business name */}
+          <div>
+            <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wide">
+              Business name <span className="text-emerald-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={businessName}
+              onChange={e => { setBusinessName(e.target.value); setError(''); }}
+              placeholder="e.g. Sharma General Store"
+              maxLength={60}
+              className={inputCls}
+              aria-label="Business name"
+            />
+          </div>
 
-function WizardShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-emerald-950 p-6">
-      {children}
-    </div>
-  );
-}
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wide">
+              Email <span className="text-emerald-400">*</span>
+            </label>
+            <input
+              ref={emailRef}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError(''); }}
+              placeholder="you@example.com"
+              className={inputCls}
+              aria-label="Email"
+            />
+          </div>
 
-function StepIndicator({ current, total }: { current: number; total: number }) {
-  return (
-    <div className="flex gap-2 mb-8">
-      {Array.from({ length: total }).map((_, i) => (
-        <div
-          key={i}
-          className={[
-            'h-1.5 rounded-full transition-all duration-300',
-            i < current ? 'w-8 bg-emerald-500' : i === current - 1 ? 'w-8 bg-emerald-400' : 'w-4 bg-white/20',
-          ].join(' ')}
-        />
-      ))}
+          {/* Password */}
+          <div>
+            <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wide">
+              Password <span className="text-emerald-400">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={password}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
+                placeholder="At least 8 characters"
+                className={inputCls + ' pr-12'}
+                aria-label="Password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(s => !s)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 p-2 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <StrengthBar password={password} />
+          </div>
+
+          {/* Confirm password */}
+          <div>
+            <label className="block text-xs font-semibold text-white/50 mb-1.5 uppercase tracking-wide">
+              Confirm password <span className="text-emerald-400">*</span>
+            </label>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
+              placeholder="Enter again to confirm"
+              className={inputCls}
+              aria-label="Confirm password"
+            />
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span className="text-red-300">{error}</span>
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={!isValid || saving}
+            className="w-full h-12 flex items-center justify-center gap-2 text-white font-semibold rounded-xl text-base transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed mt-2"
+            style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}
+          >
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Setting up…</> : 'Create account'}
+          </button>
+        </form>
+
+        {/* Security note */}
+        <div className="flex items-center gap-2 mt-5 justify-center">
+          <Shield className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" />
+          <p className="text-xs text-white/25">Passwords encrypted with PBKDF2-SHA256</p>
+        </div>
+      </div>
     </div>
   );
 }
