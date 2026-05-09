@@ -1,6 +1,6 @@
-import { getApiUrl } from '@/lib/api-config';
+import { getApiBaseUrl } from '@/lib/api-config';
 
-const BASE = getApiUrl('');
+const BASE = getApiBaseUrl();
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { headers: { 'Content-Type': 'application/json' }, ...init });
@@ -9,11 +9,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<{ status: string }>('/health'),
-  getLedger: () => request<Record<string, unknown>[]>('/ledger'),
-  addLedger: (entry: Record<string, unknown>) => request<Record<string, unknown>>('/ledger', { method: 'POST', body: JSON.stringify(entry) }),
-  reports: () => request<Record<string, unknown>[]>('/reports'),
-  sync: (batch: unknown[]) => request<{ ok: boolean }>('/sync', { method: 'POST', body: JSON.stringify(batch) }),
+  health: () => request<{ status: string }>('/api/v1/health'),
+  getLedger: () => request<Record<string, unknown>[]>('/api/v1/ledger'),
+  addLedger: (entry: Record<string, unknown>) => request<Record<string, unknown>>('/api/v1/ledger', { method: 'POST', body: JSON.stringify(entry) }),
+  reports: () => request<Record<string, unknown>[]>('/api/v1/reports'),
+  sync: (batch: unknown[]) => request<{ ok: boolean }>('/api/v1/sync', { method: 'POST', body: JSON.stringify(batch) }),
 };
 
 export default api;

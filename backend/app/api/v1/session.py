@@ -1,6 +1,10 @@
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+def _utcnow() -> datetime:
+    """Return current UTC time as a naive datetime (SQLite-compatible)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from secrets import token_urlsafe
 from typing import Optional
 import hashlib
@@ -32,9 +36,14 @@ def _check_lockout(device_id: str) -> None:
     state = _login_attempts[device_id]
     if state["locked_until"] > time.monotonic():
         remaining = int(state["locked_until"] - time.monotonic())
+        locked_until_iso = (_utcnow() + timedelta(seconds=remaining)).isoformat()
         raise HTTPException(
-            status_code=429,
-            detail=f"Too many failed attempts. Try again in {remaining} seconds."
+            status_code=423,  # 423 Locked — auth.ts maps this to locked:true + UI countdown
+            detail={
+                "message": f"Too many failed attempts. Try again in {remaining} seconds.",
+                "locked_until": locked_until_iso,
+                "retry_after_seconds": remaining,
+            }
         )
 
 
@@ -121,7 +130,7 @@ def session_login(body: LoginRequest, db: DBSession = Depends(get_db)):
         # Successful — clear failure counter and issue session token
         _clear_attempts(device_id)
 
-        expires = datetime.utcnow() + timedelta(minutes=SESSION_TTL_MIN)
+        expires = _utcnow() + timedelta(minutes=SESSION_TTL_MIN)
         token = token_urlsafe(32)
         s = SessionModel(
             user_id=user.id,
@@ -163,11 +172,11 @@ def session_refresh(body: TokenRequest, db: DBSession = Depends(get_db)):
     ).first()
     if not s:
         raise HTTPException(status_code=401, detail="Invalid session")
-    if s.expires_at < datetime.utcnow():
+    if s.expires_at < _utcnow():
         db.delete(s)
         db.commit()
         raise HTTPException(status_code=401, detail="Session expired")
-    s.expires_at = datetime.utcnow() + timedelta(minutes=SESSION_TTL_MIN)
+    s.expires_at = _utcnow() + timedelta(minutes=SESSION_TTL_MIN)
     db.commit()
     db.refresh(s)
     return {

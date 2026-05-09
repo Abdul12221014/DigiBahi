@@ -3,12 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, func, case
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from typing import List, Optional, Dict, Any, NoReturn
+from datetime import datetime, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from ...db.base import get_db
 from ...db import models
 from ...db import schemas
-from .sync_ws import broadcast
 from ..deps import get_current_session, require_owner, require_owner_or_accountant
 from ...db.models import User
 
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["Ledger"])
 
-def http_error(status: int, code: str, message: str, details: dict = None):
+def http_error(status: int, code: str, message: str, details: dict = None) -> NoReturn:
     """Helper for consistent error envelope"""
     raise HTTPException(
         status_code=status,
@@ -29,15 +31,14 @@ def http_error(status: int, code: str, message: str, details: dict = None):
 
 def broadcast_event(event_data: dict):
     """
-    Schedule a WebSocket broadcast on the running event loop.
-    Uses run_coroutine_threadsafe so the broadcast runs on the same loop
-    that uvicorn owns — no new loops, no silent daemon-thread teardown loss.
+    Schedule a WebSocket broadcast on the main event loop.
+    sync_ws.schedule_broadcast uses run_coroutine_threadsafe with the loop
+    stored at startup — safe from thread-pool workers where there is no
+    running loop in the current thread.
     """
-    import asyncio
     try:
-        loop = asyncio._get_running_loop()  # noqa: SLF001 — non-raising, works on 3.8–3.12
-        if loop is not None:
-            asyncio.run_coroutine_threadsafe(broadcast(event_data), loop)
+        from ...api.v1.sync_ws import schedule_broadcast
+        schedule_broadcast(event_data)
     except Exception as e:
         logger.warning("Broadcast error (non-critical): %s", e)
     
@@ -197,7 +198,7 @@ def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(
                 "created_at": db_entry.created_at.isoformat() if db_entry.created_at else None,
                 "updated_at": db_entry.updated_at.isoformat() if db_entry.updated_at else None
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": _utcnow().isoformat()
         })
         
         return db_entry
@@ -238,7 +239,7 @@ def update_ledger_entry(
     db_entry.party_name = entry.party_name
     db_entry.reference_no = entry.reference_no
     db_entry.tags = entry.tags
-    db_entry.updated_at = datetime.utcnow()
+    db_entry.updated_at = _utcnow()
     
     try:
         db.commit()
@@ -262,7 +263,7 @@ def update_ledger_entry(
                 "created_at": db_entry.created_at.isoformat() if db_entry.created_at else None,
                 "updated_at": db_entry.updated_at.isoformat() if db_entry.updated_at else None
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": _utcnow().isoformat()
         })
         
         return db_entry
@@ -284,7 +285,7 @@ def delete_ledger_entry(id: int, db: Session = Depends(get_db), _user: User = De
     
     # Soft delete
     db_entry.is_active = False
-    db_entry.deleted_at = datetime.utcnow()
+    db_entry.deleted_at = _utcnow()
     
     try:
         db.commit()
@@ -298,7 +299,7 @@ def delete_ledger_entry(id: int, db: Session = Depends(get_db), _user: User = De
                 "type": db_entry.type,
                 "amount": db_entry.amount
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": _utcnow().isoformat()
         })
         
         return {"message": "Entry soft-deleted successfully"}

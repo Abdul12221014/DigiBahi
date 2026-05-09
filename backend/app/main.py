@@ -50,10 +50,15 @@ except ImportError as e:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     # Create all tables once at startup — idempotent, safe on existing schemas.
     # Route files no longer call create_all() individually.
     import app.db.models  # ensure all model classes are imported before create_all
     Base.metadata.create_all(bind=engine)
+    # Store the running event loop so sync route handlers can dispatch WS
+    # broadcasts via run_coroutine_threadsafe (avoids private _get_running_loop).
+    from .api.v1.sync_ws import set_event_loop
+    set_event_loop(asyncio.get_running_loop())
     yield
 
 

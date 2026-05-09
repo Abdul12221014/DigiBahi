@@ -2,7 +2,10 @@
 Shared FastAPI dependencies — authentication and role-based access control.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from typing import List
 
 from fastapi import Depends, Header, HTTPException
@@ -28,7 +31,7 @@ def get_current_session(
     ).first()
     if not s:
         raise HTTPException(status_code=401, detail="Invalid or missing session token")
-    if s.expires_at < datetime.utcnow():
+    if s.expires_at < _utcnow():
         db.delete(s)
         db.commit()
         raise HTTPException(status_code=401, detail="Session expired — please log in again")

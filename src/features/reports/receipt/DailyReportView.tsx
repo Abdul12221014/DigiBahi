@@ -17,13 +17,14 @@ export function DailyReportView() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Get all entries for today
+            // Get all entries for today — compare strings, not Date objects (Dexie indexes 'date' as string)
+        const todayStr = today.toISOString().slice(0, 10);
         const dailyEntries = await db.ledger
             .where('date')
-            .aboveOrEqual(today)
+            .aboveOrEqual(todayStr)
             .toArray();
 
-        setEntries(dailyEntries);
+        setEntries(dailyEntries.filter(e => e.is_active !== false));
         setLoading(false);
     }
 

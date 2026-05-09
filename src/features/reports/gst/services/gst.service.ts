@@ -124,9 +124,14 @@ function mapLedgerLocalToEntry(local: LedgerLocal): Entry {
 
 async function getLedgerEntries(period: string): Promise<Entry[]> {
   try {
-    if (db?.ledger) return await db.ledger.where('date').startsWith(period).toArray();
+    if (db?.ledger) {
+      const rows = await db.ledger.where('date').startsWith(period).toArray();
+      return rows.filter((e: { is_active?: boolean }) => e.is_active !== false) as Entry[];
+    }
     const localEntries = await getLedger();
-    return localEntries.filter(e => e.date?.startsWith(period)).map(mapLedgerLocalToEntry);
+    return localEntries
+      .filter(e => e.date?.startsWith(period) && (e as { is_active?: boolean }).is_active !== false)
+      .map(mapLedgerLocalToEntry);
   } catch (err) {
     console.warn('[GST] Ledger fetch failed:', err);
     return [];
@@ -164,7 +169,7 @@ export async function generateGSTR1(period: string): Promise<GSTR1Row[]> {
     throw new GSTReportError('Invalid period', 'INVALID_PERIOD');
 
   const entries = await getLedgerEntries(period);
-  if (!entries.length) throw new GSTReportError('No data available', 'NO_DATA');
+  if (!entries.length) return [];
 
   return entries
     .filter(e => e.type === 'sale' && validateEntry(e))

@@ -7,7 +7,7 @@ import { getApiBaseUrl } from '@/lib/api-config';
 import { getSessionToken } from '@/lib/auth';
 import sessionService from '@/services/session.service';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || getApiBaseUrl();
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || getApiBaseUrl();
 const API_ENDPOINT = `${API_BASE_URL}/api/v1/ledger`;
 
 export interface LedgerEntry {
@@ -105,6 +105,18 @@ async function fetchJSON<T>(
 ): Promise<T> {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  // Honor external abort signal (e.g. React Query cancellation) alongside the
+  // internal timeout. Without this, the external signal is silently dropped.
+  const externalSignal = init.signal;
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timeout);
+      ctrl.abort(externalSignal.reason);
+    } else {
+      externalSignal.addEventListener('abort', () => ctrl.abort(externalSignal.reason), { once: true });
+    }
+  }
 
   try {
     const res = await fetch(url, {

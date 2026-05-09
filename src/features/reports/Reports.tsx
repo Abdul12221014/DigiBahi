@@ -17,7 +17,7 @@ const loadJsPDF = async () => {
 
 export function Reports() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [usbConnected, setUsbConnected] = useState(false);
 
   useEffect(() => {
@@ -48,9 +48,10 @@ export function Reports() {
   };
 
   async function loadEntries() {
+    setLoading(true);
     try {
       const allEntries = await db.ledger.orderBy('date').reverse().toArray();
-      setEntries(allEntries);
+      setEntries(allEntries.filter(e => e.is_active !== false));
     } catch (error) {
       toast.error('Failed to load entries');
     } finally {
@@ -62,7 +63,7 @@ export function Reports() {
     const sales = entries.filter(e => e.type === 'sale').reduce((sum, e) => sum + e.amount + e.gstAmount, 0);
     const purchases = entries.filter(e => e.type === 'purchase').reduce((sum, e) => sum + e.amount + e.gstAmount, 0);
     const expenses = entries.filter(e => e.type === 'expense').reduce((sum, e) => sum + e.amount + e.gstAmount, 0);
-    const receipts = entries.filter(e => e.type === 'receipt').reduce((sum, e) => sum + e.amount, 0);
+    const receipts = entries.filter(e => e.type === 'receipt').reduce((sum, e) => sum + e.amount + e.gstAmount, 0);
     const gstCollected = entries.filter(e => e.type === 'sale').reduce((sum, e) => sum + e.gstAmount, 0);
     const gstPaid = entries.filter(e => ['purchase', 'expense'].includes(e.type)).reduce((sum, e) => sum + e.gstAmount, 0);
 
@@ -208,7 +209,7 @@ export function Reports() {
       ])
     ].map(row => row.join(',')).join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8' });
     saveAs(blob, `ledger_${Date.now()}.csv`);
     toast.success('Ledger exported to CSV');
   };
@@ -333,10 +334,6 @@ export function Reports() {
     );
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Loading reports...</div>;
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -438,7 +435,16 @@ export function Reports() {
               <p className="text-xs text-muted-foreground font-medium sticky top-0 bg-white/95 backdrop-blur z-10 pb-2 border-b">
                 Recent Transactions
               </p>
-              {entries.slice(0, 10).map((entry) => (
+              {loading && Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex justify-between items-center p-2 animate-pulse">
+                  <div className="space-y-1">
+                    <div className="h-2.5 w-16 bg-muted rounded" />
+                    <div className="h-2 w-24 bg-muted rounded" />
+                  </div>
+                  <div className="h-2.5 w-12 bg-muted rounded" />
+                </div>
+              ))}
+              {!loading && entries.slice(0, 10).map((entry) => (
                 <div key={entry.id} className="flex justify-between items-center text-sm p-2 hover:bg-muted/50 rounded-md group">
                   <div className="flex flex-col">
                     <span className="font-medium text-xs">{formatDate(entry.date)}</span>
