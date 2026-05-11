@@ -81,7 +81,7 @@ export function generateUPIIntentLink(intent: UPIIntent): UPIIntentLink {
     amount: intent.amount,
     note: intent.note,
     txnRef: intent.txnRef,
-    payerName: intent.payerName
+    payeeName: intent.payerName
   });
   
   return {

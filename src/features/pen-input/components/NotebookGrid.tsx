@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { NotebookPage, listPages, listSections, NotebookSection } from '@/lib/localStore';
 import { getTemplateThumbnail } from '../templates';
+import type { TemplateId } from '../types/template.types';
 import { FileText, Grid3x3 } from 'lucide-react';
 
 interface NotebookGridProps {
@@ -62,7 +63,7 @@ export const NotebookGrid: React.FC<NotebookGridProps> = ({
     }
 
     // Generate thumbnail (template background only for now)
-    const thumbnail = getTemplateThumbnail(page.templateId, 160, 220);
+    const thumbnail = getTemplateThumbnail(page.templateId as TemplateId, 160, 220);
     
     // TODO: In future, overlay stroke snapshot on top of template
     // This would require rendering strokes to a small canvas and compositing

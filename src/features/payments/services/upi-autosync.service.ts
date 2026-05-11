@@ -53,7 +53,7 @@ export async function startUPIAutoSyncOnce(): Promise<void> {
         devLog('Skipping invalid update record:', upd);
         continue;
       }
-      await updateUPIIntentStatus(upd.txnRef, upd.status);
+      await updateUPIIntentStatus(upd.txnRef, upd.status as Parameters<typeof updateUPIIntentStatus>[1]);
       processed++;
     }
     devLog('Reconciled', processed, 'transactions');

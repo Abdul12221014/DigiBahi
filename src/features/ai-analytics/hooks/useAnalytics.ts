@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import analyticsService, { AnalyticsSummary, TrendsResponse } from '../services/analytics.service';
+import analyticsService from '../services/analytics.service';
+import type { AnalyticsSummary, TrendsResponse } from '../types';
 
 export function useAnalytics() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);

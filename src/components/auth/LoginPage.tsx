@@ -268,11 +268,12 @@ function SignInForm({
       onSuccess();
       return;
     }
-    if (result.locked) {
-      const end = new Date(result.lockedUntil).getTime();
+    const failResult = result as { ok: false; locked: boolean; lockedUntil?: string; remainingAttempts?: number };
+    if (failResult.locked) {
+      const end = new Date(failResult.lockedUntil!).getTime();
       setLockoutEnd(end); setPageState('locked'); saveStoredLockout(end);
     } else {
-      const rem = result.remainingAttempts;
+      const rem = failResult.remainingAttempts;
       setPageState('error');
       setErrorMsg(rem != null
         ? `Incorrect credentials — ${rem} attempt${rem !== 1 ? 's' : ''} remaining`

@@ -235,7 +235,7 @@ export function WhatsAppShare() {
           duration: 8000,
         });
       } else if (errorMessage.includes('API_UNAVAILABLE') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
-        console.log('WhatsApp API unavailable, using browser fallback:', error.message);
+        console.log('WhatsApp API unavailable, using browser fallback:', error instanceof Error ? error.message : '');
         toast.info('Backend API unavailable. Using browser method to send OTP.');
       } else if (errorMessage.includes('Invalid or expired access token')) {
         toast.error('WhatsApp API Token Invalid', {
@@ -243,7 +243,7 @@ export function WhatsAppShare() {
           duration: 8000,
         });
       } else {
-        console.log('WhatsApp API error, using browser fallback:', error.message);
+        console.log('WhatsApp API error, using browser fallback:', error instanceof Error ? error.message : '');
         toast.warning('WhatsApp API Error', {
           description: `Using manual method. ${errorMessage.substring(0, 80)}...`,
           duration: 6000,

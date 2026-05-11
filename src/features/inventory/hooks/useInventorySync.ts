@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import ws, { type WsMessage } from '@/services/ws.service';
 import { toast } from 'sonner';
+import type { RawInventoryItem } from '../types/inventory.types';
 
 interface UseInventorySyncCallbacks {
-  onItemCreated?: (item: unknown) => void;
-  onItemUpdated?: (item: unknown) => void;
+  onItemCreated?: (item: RawInventoryItem) => void;
+  onItemUpdated?: (item: RawInventoryItem) => void;
   onItemDeleted?: (id: number) => void;
   onStockChanged?: (data: unknown) => void;
 }
@@ -50,13 +51,13 @@ export function useInventorySync(callbacks: UseInventorySyncCallbacks) {
       try {
         switch (msg.type) {
           case 'inventory_item_created': {
-            currentCallbacks.onItemCreated?.(msg.data);
+            currentCallbacks.onItemCreated?.(msg.data as RawInventoryItem);
             toast.success(`New item: ${strProp(msg.data, 'name') || 'Untitled'}`);
             break;
           }
 
           case 'inventory_item_updated': {
-            currentCallbacks.onItemUpdated?.(msg.data);
+            currentCallbacks.onItemUpdated?.(msg.data as RawInventoryItem);
             toast.info(`Item updated: ${strProp(msg.data, 'name') || 'Unknown'}`);
             break;
           }

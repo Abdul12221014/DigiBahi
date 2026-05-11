@@ -61,8 +61,7 @@ export async function importBackup(file: File) {
   if (json.version >= 2) {
     await db.transaction(
       'rw',
-      db.ledger, db.customerContacts, db.companySettings,
-      db.creditEntries, db.gstRecords,
+      [db.ledger, db.customerContacts, db.companySettings, db.creditEntries, db.gstRecords],
       async () => {
         await Promise.all([
           db.ledger.clear(),

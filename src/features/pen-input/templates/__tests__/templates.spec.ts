@@ -1,6 +1,6 @@
 /**
  * Template Tests
- * 
+ *
  * Tests for the page template system including:
  * - Template rendering (blank, lined, columnar)
  * - Thumbnail generation
@@ -8,7 +8,7 @@
  * - Performance benchmarks
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { drawTemplate, getTemplateThumbnail, TemplateId } from '../index';
 
 describe('Template System', () => {
@@ -25,25 +25,25 @@ describe('Template System', () => {
   describe('drawTemplate', () => {
     it('should draw blank template without errors', () => {
       expect(() => {
-        drawTemplate(ctx, canvas.width, canvas.height, 'blank');
+        drawTemplate(ctx, 'blank', canvas.width, canvas.height);
       }).not.toThrow();
     });
 
     it('should draw lined template without errors', () => {
       expect(() => {
-        drawTemplate(ctx, canvas.width, canvas.height, 'lined');
+        drawTemplate(ctx, 'lined', canvas.width, canvas.height);
       }).not.toThrow();
     });
 
     it('should draw columnar template without errors', () => {
       expect(() => {
-        drawTemplate(ctx, canvas.width, canvas.height, 'columnar');
+        drawTemplate(ctx, 'columnar', canvas.width, canvas.height);
       }).not.toThrow();
     });
 
     it('should accept custom options', () => {
       expect(() => {
-        drawTemplate(ctx, canvas.width, canvas.height, 'lined', {
+        drawTemplate(ctx, 'lined', canvas.width, canvas.height, {
           lineSpacing: 40,
           margin: 50,
           color: '#cccccc',
@@ -53,13 +53,13 @@ describe('Template System', () => {
 
     it('should handle zero dimensions gracefully', () => {
       expect(() => {
-        drawTemplate(ctx, 0, 0, 'lined');
+        drawTemplate(ctx, 'lined', 0, 0);
       }).not.toThrow();
     });
 
     it('should handle negative dimensions gracefully', () => {
       expect(() => {
-        drawTemplate(ctx, -100, -100, 'lined');
+        drawTemplate(ctx, 'lined', -100, -100);
       }).not.toThrow();
     });
   });
@@ -99,30 +99,30 @@ describe('Template System', () => {
   describe('Template Performance', () => {
     it('should render blank template in < 20ms', () => {
       const start = performance.now();
-      drawTemplate(ctx, 1920, 1080, 'blank');
+      drawTemplate(ctx, 'blank', 1920, 1080);
       const end = performance.now();
       const duration = end - start;
-      
+
       console.log(`[Benchmark] Blank template: ${duration.toFixed(2)}ms`);
       expect(duration).toBeLessThan(20);
     });
 
     it('should render lined template in < 20ms', () => {
       const start = performance.now();
-      drawTemplate(ctx, 1920, 1080, 'lined');
+      drawTemplate(ctx, 'lined', 1920, 1080);
       const end = performance.now();
       const duration = end - start;
-      
+
       console.log(`[Benchmark] Lined template: ${duration.toFixed(2)}ms`);
       expect(duration).toBeLessThan(20);
     });
 
     it('should render columnar template in < 20ms', () => {
       const start = performance.now();
-      drawTemplate(ctx, 1920, 1080, 'columnar');
+      drawTemplate(ctx, 'columnar', 1920, 1080);
       const end = performance.now();
       const duration = end - start;
-      
+
       console.log(`[Benchmark] Columnar template: ${duration.toFixed(2)}ms`);
       expect(duration).toBeLessThan(20);
     });
@@ -132,7 +132,7 @@ describe('Template System', () => {
       getTemplateThumbnail('lined', 120, 160);
       const end = performance.now();
       const duration = end - start;
-      
+
       console.log(`[Benchmark] Thumbnail generation: ${duration.toFixed(2)}ms`);
       expect(duration).toBeLessThan(10);
     });
@@ -141,41 +141,41 @@ describe('Template System', () => {
   describe('Template Options', () => {
     it('should respect lineSpacing option', () => {
       const spy = vi.spyOn(ctx, 'moveTo');
-      drawTemplate(ctx, 800, 600, 'lined', { lineSpacing: 50 });
-      
+      drawTemplate(ctx, 'lined', 800, 600, { lineSpacing: 50 });
+
       // Should have fewer lines with larger spacing
       const callCount = spy.mock.calls.length;
       expect(callCount).toBeGreaterThan(0);
-      
+
       spy.mockRestore();
     });
 
     it('should respect margin option', () => {
       const spy = vi.spyOn(ctx, 'moveTo');
-      drawTemplate(ctx, 800, 600, 'lined', { margin: 100 });
-      
+      drawTemplate(ctx, 'lined', 800, 600, { margin: 100 });
+
       // Check that lines start at margin
       const calls = spy.mock.calls;
       if (calls.length > 0) {
         const firstCall = calls[0];
         expect(firstCall[0]).toBeGreaterThanOrEqual(100);
       }
-      
+
       spy.mockRestore();
     });
 
     it('should respect color option', () => {
       const spy = vi.spyOn(ctx, 'stroke');
-      drawTemplate(ctx, 800, 600, 'lined', { color: '#ff0000' });
-      
+      drawTemplate(ctx, 'lined', 800, 600, { color: '#ff0000' });
+
       expect(ctx.strokeStyle).toContain('ff0000');
       spy.mockRestore();
     });
 
     it('should respect columnCount option for columnar template', () => {
       const spy = vi.spyOn(ctx, 'moveTo');
-      drawTemplate(ctx, 800, 600, 'columnar', { columnCount: 3 });
-      
+      drawTemplate(ctx, 'columnar', 800, 600, { columnCount: 3 });
+
       // Should draw vertical lines for columns
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
@@ -188,7 +188,7 @@ describe('Template System', () => {
     templateIds.forEach(templateId => {
       it(`should support ${templateId} template`, () => {
         expect(() => {
-          drawTemplate(ctx, 800, 600, templateId);
+          drawTemplate(ctx, templateId, 800, 600);
         }).not.toThrow();
       });
 
@@ -205,9 +205,9 @@ describe('Template System', () => {
       smallCanvas.width = 10;
       smallCanvas.height = 10;
       const smallCtx = smallCanvas.getContext('2d')!;
-      
+
       expect(() => {
-        drawTemplate(smallCtx, 10, 10, 'lined');
+        drawTemplate(smallCtx, 'lined', 10, 10);
       }).not.toThrow();
     });
 
@@ -216,19 +216,19 @@ describe('Template System', () => {
       largeCanvas.width = 4000;
       largeCanvas.height = 3000;
       const largeCtx = largeCanvas.getContext('2d')!;
-      
+
       expect(() => {
-        drawTemplate(largeCtx, 4000, 3000, 'lined');
+        drawTemplate(largeCtx, 'lined', 4000, 3000);
       }).not.toThrow();
     });
 
     it('should handle unusual aspect ratios', () => {
       expect(() => {
-        drawTemplate(ctx, 2000, 100, 'lined');
+        drawTemplate(ctx, 'lined', 2000, 100);
       }).not.toThrow();
 
       expect(() => {
-        drawTemplate(ctx, 100, 2000, 'lined');
+        drawTemplate(ctx, 'lined', 100, 2000);
       }).not.toThrow();
     });
   });
@@ -241,4 +241,3 @@ describe('Migration Tests', () => {
     expect(module.getTemplateThumbnail).toBeDefined();
   });
 });
-

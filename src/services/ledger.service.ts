@@ -29,7 +29,7 @@ export async function deleteEntry(id: number) { return ledgerDB.entries.delete(i
 export async function markSynced(ids: number[]) { return ledgerDB.entries.where('id').anyOf(ids).modify({ synced: true }); }
 
 export async function syncPending() {
-  const pending = await ledgerDB.entries.where('synced').equals(false).toArray();
+  const pending = await ledgerDB.entries.where('synced').equals(0).toArray();
   if (pending.length === 0) return 0;
   const res = await api.sync(pending);
   if (res?.ok) await markSynced(pending.map(e => e.id!).filter(Boolean));

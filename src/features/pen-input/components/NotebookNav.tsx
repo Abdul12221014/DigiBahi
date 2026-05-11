@@ -313,7 +313,7 @@ export function NotebookNav({
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">
             <TemplatePicker
-              currentTemplateId={currentPage?.templateId || 'lined'}
+              currentTemplateId={(currentPage?.templateId || 'lined') as TemplateId}
               onSelect={handleTemplateSelect}
               onClose={() => setShowTemplatePicker(false)}
             />

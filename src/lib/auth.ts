@@ -35,7 +35,7 @@ export function getOrCreateDeviceId(): string {
 
 // ─── Password hashing (PBKDF2-SHA256, 600k iterations) ───────────────────────
 
-async function deriveKey(secret: string, salt: Uint8Array): Promise<string> {
+async function deriveKey(secret: string, salt: Uint8Array<ArrayBuffer>): Promise<string> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(secret),
@@ -54,7 +54,7 @@ async function deriveKey(secret: string, salt: Uint8Array): Promise<string> {
 }
 
 export async function hashPassword(password: string): Promise<{ passwordHash: string; passwordSalt: string }> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const salt = crypto.getRandomValues(new Uint8Array(16)) as Uint8Array<ArrayBuffer>;
   const passwordHash = await deriveKey(password, salt);
   const passwordSalt = btoa(String.fromCharCode(...salt));
   return { passwordHash, passwordSalt };
@@ -362,7 +362,7 @@ export async function login(
 
   // 2. Offline fallback
   const result = await authenticateLocally(identifier, password);
-  if (!result.ok) return result;
+  if (!result.ok) return result as Exclude<LoginResult, { ok: true }>;
 
   const localToken = `local-${crypto.randomUUID()}`;
   const authUser: AuthUser = {

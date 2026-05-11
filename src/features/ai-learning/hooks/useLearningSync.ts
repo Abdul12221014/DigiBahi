@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import learningService, { ModelStatus, TrainingProgress, SyncStatus } from '../services/learning.service';
+import learningService from '../services/learning.service';
+import type { ModelStatus, TrainingProgress, SyncStatus } from '../types';
 
 export function useLearningSync() {
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);

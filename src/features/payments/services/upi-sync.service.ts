@@ -131,14 +131,18 @@ export class UPISyncService {
    * Check if backend is reachable
    */
   async checkBackendHealth(): Promise<boolean> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/health`, {
         method: 'GET',
-        timeout: 5000
+        signal: ctrl.signal,
       });
       return response.ok;
-    } catch (error) {
+    } catch {
       return false;
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

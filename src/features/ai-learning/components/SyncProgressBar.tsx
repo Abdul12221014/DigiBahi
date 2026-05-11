@@ -1,8 +1,6 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { SyncProgressBarProps } from '../types';
-
 interface SyncProgressBarProps {
   status: 'idle' | 'uploading' | 'downloading' | 'completed' | 'error';
   progress: number;

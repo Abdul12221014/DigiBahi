@@ -116,5 +116,3 @@ export interface AppConfig {
 
 // Export all types
 export * from './canvas';
-export * from './api';
-export * from './config';

@@ -5,7 +5,7 @@ import RoleManager from '@/components/RoleManager';
 import AuditLogView from '@/components/AuditLogView';
 
 const AdminPage: React.FC = () => {
-  const canView = useRole(['admin']);
+  const canView = useRole(['owner']);
   if (!canView) return <AccessDenied/>;
   return (
     <div className="space-y-6">
