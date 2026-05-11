@@ -2,6 +2,7 @@ import { db, User } from './db';
 import type { LoginAttempt } from './db';
 import sessionService from '@/services/session.service';
 import type { AuthUser } from '@/contexts/AuthContext';
+import { setPenPin, clearPenPin } from './penSession';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
@@ -333,6 +334,7 @@ export async function login(
       };
       sessionService.saveSession({ token: data.session_token, expiresAt: data.expires_at }, persist);
       setCurrentUser({ ...authUser, passwordHash: '', passwordSalt: '', isActive: true, createdAt: new Date() });
+      setPenPin(password);
       return { ok: true, user: authUser };
     }
 
@@ -375,6 +377,7 @@ export async function login(
     source: 'offline',
   };
   setCurrentUser({ ...result.user, sessionToken: localToken });
+  setPenPin(password);
   return { ok: true, user: authUser };
 }
 
@@ -398,6 +401,7 @@ export async function resetUserPassword(userId: number, newPassword: string): Pr
 export async function logout(): Promise<void> {
   await sessionService.logout().catch(() => {});
   setCurrentUser(null);
+  clearPenPin();
 }
 
 // ─── Legacy compat (kept for sync.service.ts) ─────────────────────────────────

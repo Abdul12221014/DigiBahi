@@ -1,6 +1,7 @@
 import Dexie, { Table } from 'dexie';
 import type { UPIIntent, UPIReconcileRequest } from '@/features/payments/types/upi.types';
 import type { AnalyticsEvent } from './analytics';
+import type { Item, StockTxn } from '@/features/inventory/types/inventory.types';
 
 export interface User {
   id?: number;
@@ -60,16 +61,14 @@ export interface LedgerEntry {
   gstAmount: number;
   created_by?: number | null;
   created_at: string;
+  updated_at?: string;
   party_name?: string;
   reference_no?: string;
   tags?: string;
   is_active?: boolean;
   deleted_at?: string | null;
-  updated_at?: string;
   itemId?: number;
   qty?: number;
-  userId?: number;
-  createdAt?: Date;
   customer_id?: number;
   synced_at?: string | null;
   remote_id?: string | null;
@@ -109,6 +108,8 @@ export interface CreditEntry {
   id?: number;
   invoiceNumber: string;
   ledgerEntryId?: number;
+  /** FK to customerContacts.id — preferred over the denormalised name/phone fields. */
+  customer_id?: number;
   customerName: string;
   customerPhone: string;
   amount: number;
@@ -128,8 +129,8 @@ export class DigBahiDB extends Dexie {
   gstRecords!: Table<GSTRecord>;
   upiIntents!: Table<UPIIntent>;
   syncQueue!: Table<UPIReconcileRequest>;
-  items!: Table<Record<string, unknown>>;
-  stockTxns!: Table<Record<string, unknown>>;
+  items!: Table<Item>;
+  stockTxns!: Table<StockTxn>;
   companySettings!: Table<CompanySettings>;
   customerContacts!: Table<CustomerContact>;
   creditEntries!: Table<CreditEntry>;

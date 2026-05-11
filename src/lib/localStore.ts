@@ -1,6 +1,9 @@
 import Dexie from 'dexie';
+import { getPenPin } from './penSession';
 
-export interface StrokeRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
+// strokeId is stored in plaintext so rows can be located and deleted by the
+// canvas engine without requiring full-table decryption.
+export interface StrokeRow { id?: number; strokeId?: string; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
 export interface ShapeRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
 export interface OcrRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
 export interface OCRCorrectionRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
@@ -170,6 +173,20 @@ class PenDB extends Dexie {
       notebookPages: '++id, pageId, pageNumber, createdAt, updatedAt',
       notebookSections: '++id, sectionId, createdAt',
     });
+
+    // Version 7: Add strokeId plaintext index so individual strokes can be
+    // deleted by string ID without decrypting the entire table.
+    // Pre-v7 rows have no strokeId and remain undeletable by ID (same as before).
+    this.version(7).stores({
+      strokes: '++id, strokeId, createdAt',
+      shapes: '++id, createdAt',
+      ocr: '++id, createdAt',
+      ocrCorrections: '++id, createdAt',
+      ocrTelemetry: '++id, createdAt',
+      consent: '++id, createdAt',
+      notebookPages: '++id, pageId, pageNumber, createdAt, updatedAt',
+      notebookSections: '++id, sectionId, createdAt',
+    });
   }
 }
 
@@ -204,42 +221,33 @@ export async function decryptObject<T>(payload: ArrayBuffer, iv: ArrayBuffer, sa
   return JSON.parse(new TextDecoder().decode(new Uint8Array(decrypted))) as T;
 }
 
-// Save helpers (callers pass user PIN)
-export async function saveStroke(payload: unknown, pin = '1234') {
-  const { payload: data, iv, salt } = await encryptObject(payload, pin);
-  return penDB.strokes.add({ payload: data, iv, salt, createdAt: Date.now() });
+// Save helpers — PIN defaults to the current session key (set at login).
+export async function saveStroke(payload: unknown, pin?: string) {
+  const activePin = pin ?? getPenPin();
+  const strokeId = (payload as { id?: string }).id ?? '';
+  const { payload: data, iv, salt } = await encryptObject(payload, activePin);
+  return penDB.strokes.add({ strokeId, payload: data, iv, salt, createdAt: Date.now() });
 }
-export async function saveShape(payload: unknown, pin = '1234') {
-  const { payload: data, iv, salt } = await encryptObject(payload, pin);
+export async function saveShape(payload: unknown, pin?: string) {
+  const activePin = pin ?? getPenPin();
+  const { payload: data, iv, salt } = await encryptObject(payload, activePin);
   return penDB.shapes.add({ payload: data, iv, salt, createdAt: Date.now() });
 }
-export async function saveOcr(payload: unknown, pin = '1234') {
-  const { payload: data, iv, salt } = await encryptObject(payload, pin);
+export async function saveOcr(payload: unknown, pin?: string) {
+  const activePin = pin ?? getPenPin();
+  const { payload: data, iv, salt } = await encryptObject(payload, activePin);
   return penDB.ocr.add({ payload: data, iv, salt, createdAt: Date.now() });
 }
 
-export async function deleteStroke(id: string) {
-  // Find id by string strokeId matching payload (inefficient but works for now without strokeId index)
-  // V2 Optimization: Add strokeId to index
-  // For now, load all strokes and find hit (or we rely on useCanvas passing the primary key)
-  // Actually, Dexie table is number indexed '++id'. The stroke object has a string 'id'.
-  // We need to find the record where decrypted payload.id == id.
-  // This is too slow for real-time.
-  // OPTIMIZATION: We will assume for this "Object Eraser" feature that we might need to rely on the in-memory array for drawing
-  // and do a lazy cleanup, OR just implement a proper index in future.
-  // For the MVP, we will try to find it.
-
-  // NOTE: This is slow. In production, we need a separate 'strokeId' index column.
-  // For now, let's just implement the stub and rely on frontend state mostly.
-  // But wait, useCanvas calls deleteStroke.
-
-  // REAL FIX: We cannot easily delete from DB by string ID without decryption or index.
-  // Let's implement a 'soft delete' or just console log for now as 'Not Implemented Persistently'
-  // to prevent runtime crash.
-  console.warn('deleteStroke: Persistent deletion requires DB migration. Memory deletion only for this session.');
+// Deletes a stroke from the database by its string ID using the plaintext
+// strokeId index added in PenDB v7. Pre-v7 rows without strokeId are
+// unaffected (in-memory deletion via useCanvas still removes them visually).
+export async function deleteStroke(id: string): Promise<void> {
+  await penDB.strokes.where('strokeId').equals(id).delete();
 }
 
-export async function loadAll(pin = '1234') {
+export async function loadAll(pin?: string) {
+  pin = pin ?? getPenPin();
   const [strokes, shapes, ocr] = await Promise.all([
     penDB.strokes.toArray(), penDB.shapes.toArray(), penDB.ocr.toArray(),
   ]);
@@ -251,12 +259,14 @@ export async function loadAll(pin = '1234') {
 }
 
 // OCR Corrections helpers
-export async function saveOCRCorrection(correction: OCRCorrection, pin = '1234') {
+export async function saveOCRCorrection(correction: OCRCorrection, pin?: string) {
+  pin = pin ?? getPenPin();
   const { payload, iv, salt } = await encryptObject(correction, pin);
   return penDB.ocrCorrections.add({ payload, iv, salt, createdAt: Date.now() });
 }
 
-export async function loadOCRCorrections(pin = '1234'): Promise<OCRCorrection[]> {
+export async function loadOCRCorrections(pin?: string): Promise<OCRCorrection[]> {
+  pin = pin ?? getPenPin();
   const rows = await penDB.ocrCorrections.orderBy('createdAt').reverse().toArray();
   return Promise.all(rows.map(r => decryptObject<OCRCorrection>(r.payload, r.iv, r.salt, pin)));
 }
@@ -271,12 +281,14 @@ export async function clearOldCorrections(daysToKeep = 30) {
 }
 
 // OCR Telemetry helpers
-export async function saveOCRTelemetry(telemetry: OCRTelemetry, pin = '1234') {
+export async function saveOCRTelemetry(telemetry: OCRTelemetry, pin?: string) {
+  pin = pin ?? getPenPin();
   const { payload, iv, salt } = await encryptObject(telemetry, pin);
   return penDB.ocrTelemetry.add({ payload, iv, salt, createdAt: Date.now() });
 }
 
-export async function loadOCRTelemetry(pin = '1234', limit = 100): Promise<OCRTelemetry[]> {
+export async function loadOCRTelemetry(pin?: string, limit = 100): Promise<OCRTelemetry[]> {
+  pin = pin ?? getPenPin();
   const rows = await penDB.ocrTelemetry
     .orderBy('createdAt')
     .reverse()
@@ -301,7 +313,8 @@ export async function clearOldTelemetry(daysToKeep = 90) {
 /**
  * Save a notebook page to IndexedDB
  */
-export async function savePage(page: NotebookPage, pin = '1234'): Promise<number> {
+export async function savePage(page: NotebookPage, pin?: string): Promise<number> {
+  pin = pin ?? getPenPin();
   const now = Date.now();
   const pageData = {
     ...page,
@@ -343,7 +356,8 @@ export async function savePage(page: NotebookPage, pin = '1234'): Promise<number
 /**
  * Load a specific page by pageId
  */
-export async function loadPage(pageId: string, pin = '1234'): Promise<NotebookPage | null> {
+export async function loadPage(pageId: string, pin?: string): Promise<NotebookPage | null> {
+  pin = pin ?? getPenPin();
   const row = await penDB.notebookPages
     .where('pageId')
     .equals(pageId)
@@ -357,7 +371,8 @@ export async function loadPage(pageId: string, pin = '1234'): Promise<NotebookPa
 /**
  * Load a page by page number
  */
-export async function loadPageByNumber(pageNumber: number, pin = '1234'): Promise<NotebookPage | null> {
+export async function loadPageByNumber(pageNumber: number, pin?: string): Promise<NotebookPage | null> {
+  pin = pin ?? getPenPin();
   const row = await penDB.notebookPages
     .where('pageNumber')
     .equals(pageNumber)
@@ -371,7 +386,8 @@ export async function loadPageByNumber(pageNumber: number, pin = '1234'): Promis
 /**
  * List all pages (sorted by page number)
  */
-export async function listPages(pin = '1234'): Promise<NotebookPage[]> {
+export async function listPages(pin?: string): Promise<NotebookPage[]> {
+  pin = pin ?? getPenPin();
   const rows = await penDB.notebookPages
     .orderBy('pageNumber')
     .toArray();
@@ -405,7 +421,8 @@ export async function getPageCount(): Promise<number> {
 /**
  * Create initial blank page if no pages exist
  */
-export async function ensureInitialPage(pin = '1234'): Promise<NotebookPage> {
+export async function ensureInitialPage(pin?: string): Promise<NotebookPage> {
+  pin = pin ?? getPenPin();
   const count = await getPageCount();
 
   if (count === 0) {
@@ -436,7 +453,8 @@ export async function ensureInitialPage(pin = '1234'): Promise<NotebookPage> {
  * Migration helper: Migrate pages to V2 (add templateId & sectionId)
  * Non-destructive: only adds missing fields, preserves existing data
  */
-export async function migratePagesToV2(pin = '1234'): Promise<{ migrated: number; skipped: number; errors: number }> {
+export async function migratePagesToV2(pin?: string): Promise<{ migrated: number; skipped: number; errors: number }> {
+  pin = pin ?? getPenPin();
   const results = { migrated: 0, skipped: 0, errors: 0 };
 
   try {
@@ -482,7 +500,8 @@ export async function migratePagesToV2(pin = '1234'): Promise<{ migrated: number
 /**
  * Create backup of all pages before migration
  */
-export async function backupPagesBeforeMigration(pin = '1234'): Promise<string> {
+export async function backupPagesBeforeMigration(pin?: string): Promise<string> {
+  pin = pin ?? getPenPin();
   try {
     const pages = await listPages(pin);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -508,7 +527,8 @@ export async function backupPagesBeforeMigration(pin = '1234'): Promise<string> 
 /**
  * Save a section to IndexedDB
  */
-export async function saveSection(section: NotebookSection, pin = '1234'): Promise<number> {
+export async function saveSection(section: NotebookSection, pin?: string): Promise<number> {
+  pin = pin ?? getPenPin();
   const { payload, iv, salt } = await encryptObject(section, pin);
 
   // Check if section exists
@@ -540,7 +560,8 @@ export async function saveSection(section: NotebookSection, pin = '1234'): Promi
 /**
  * Load all sections
  */
-export async function listSections(pin = '1234'): Promise<NotebookSection[]> {
+export async function listSections(pin?: string): Promise<NotebookSection[]> {
+  pin = pin ?? getPenPin();
   const rows = await penDB.notebookSections
     .orderBy('createdAt')
     .toArray();
@@ -571,7 +592,8 @@ export async function deleteSection(sectionId: string): Promise<void> {
 /**
  * Save consent record
  */
-export async function saveConsent(consent: ConsentRecord, pin = '1234'): Promise<number> {
+export async function saveConsent(consent: ConsentRecord, pin?: string): Promise<number> {
+  pin = pin ?? getPenPin();
   const { payload, iv, salt } = await encryptObject(consent, pin);
 
   return penDB.consent.add({
@@ -585,7 +607,8 @@ export async function saveConsent(consent: ConsentRecord, pin = '1234'): Promise
 /**
  * Get current consent record (most recent)
  */
-export async function getConsent(pin = '1234'): Promise<ConsentRecord | null> {
+export async function getConsent(pin?: string): Promise<ConsentRecord | null> {
+  pin = pin ?? getPenPin();
   const row = await penDB.consent
     .orderBy('createdAt')
     .reverse()
@@ -611,7 +634,7 @@ export async function getConsent(pin = '1234'): Promise<ConsentRecord | null> {
 /**
  * Check if user has consented to a specific scope
  */
-export async function hasConsent(scope: 'ocr' | 'federated', pin = '1234'): Promise<boolean> {
+export async function hasConsent(scope: 'ocr' | 'federated', pin?: string): Promise<boolean> {
   const consent = await getConsent(pin);
 
   if (!consent || !consent.accepted) return false;
@@ -622,7 +645,8 @@ export async function hasConsent(scope: 'ocr' | 'federated', pin = '1234'): Prom
 /**
  * Revoke consent (for privacy settings)
  */
-export async function revokeConsent(pin = '1234'): Promise<void> {
+export async function revokeConsent(pin?: string): Promise<void> {
+  pin = pin ?? getPenPin();
   const current = await getConsent(pin);
 
   if (current) {
@@ -640,7 +664,8 @@ export async function revokeConsent(pin = '1234'): Promise<void> {
 /**
  * Get consent history (for privacy dashboard)
  */
-export async function getConsentHistory(pin = '1234'): Promise<ConsentRecord[]> {
+export async function getConsentHistory(pin?: string): Promise<ConsentRecord[]> {
+  pin = pin ?? getPenPin();
   const rows = await penDB.consent
     .orderBy('createdAt')
     .reverse()
