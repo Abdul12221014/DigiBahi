@@ -6,6 +6,7 @@ import { ErrorInbox } from './ErrorInbox';
 import { GSTProfileBanner } from './GSTProfileSetup';
 import { InvoiceEntryForm } from './InvoiceEntryForm';
 import { downloadGSTR1, downloadGSTR3B } from '../services/gst-export.service';
+import { FilingStatusBar } from './FilingStatusBar';
 import type { GSTInvoice } from '../types/gst-invoice.types';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -166,6 +167,9 @@ export function GSTDashboard() {
         companyStateCode={companyStateCode || undefined}
         onFixed={refresh}
       />
+
+      {/* Filing workflow */}
+      <FilingStatusBar returnPeriod={period} onChanged={refresh} />
 
       {/* Tax summary */}
       {summary && <TaxSummaryPanel summary={summary} returnPeriod={period} />}
