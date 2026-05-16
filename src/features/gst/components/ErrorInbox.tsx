@@ -80,7 +80,11 @@ export function ErrorInbox({ invoices, validations, companyStateCode, onFixed }:
           )}
           {companyStateCode && invoicesWithFix.length > 0 && (
             <button
-              onClick={() => invoicesWithFix.forEach(id => handleFix(id!))}
+              onClick={async () => {
+                for (const id of invoicesWithFix) {
+                  await handleFix(id!);
+                }
+              }}
               disabled={fixing !== null}
               className="px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
             >

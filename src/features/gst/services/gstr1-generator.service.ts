@@ -31,10 +31,13 @@ export interface EXPInvItem {
 
 export interface EXPGroup { exp_typ: string; inv: EXPInvItem[] }
 
+// B2CL groups by place of supply (state code), NOT by buyer GSTIN — buyers are unregistered
+export interface B2CLGroup { pos: string; inv: B2BInvItem[] }
+
 export interface GSTR1Sections {
   b2b: B2BGroup[];
   b2cs: B2CSItem[];
-  b2cl: B2BGroup[];
+  b2cl: B2CLGroup[];
   exp: EXPGroup[];
   cdnr: unknown[];
   cdnur: unknown[];
@@ -52,7 +55,7 @@ export function generateGSTR1Sections(invoices: GSTInvoice[], _companyStateCode:
 
   const b2bMap = new Map<string, B2BInvItem[]>();
   const b2csMap = new Map<string, B2CSItem>(); // key: `${pos}_${rate}`
-  const b2clMap = new Map<string, B2BInvItem[]>();
+  const b2clMap = new Map<string, B2BInvItem[]>(); // key: pos (state code) — GSTN groups B2CL by POS
   const expWpay: EXPInvItem[] = [];
   const expWopay: EXPInvItem[] = [];
 
@@ -87,9 +90,9 @@ export function generateGSTR1Sections(invoices: GSTInvoice[], _companyStateCode:
         b2csMap.set(key, { sply_ty, rt: inv.gstRate, txval, iamt, camt, samt, pos });
       }
     } else if (inv.invoiceType === 'B2CL') {
-      const k = inv.buyerGstin ?? 'URP';
-      if (!b2clMap.has(k)) b2clMap.set(k, []);
-      b2clMap.get(k)!.push(invItem);
+      // B2CL groups by place of supply (GSTN schema: { pos, inv }) — buyers are unregistered
+      if (!b2clMap.has(pos)) b2clMap.set(pos, []);
+      b2clMap.get(pos)!.push(invItem);
     } else if (inv.invoiceType === 'EXP_WITH_PAY') {
       expWpay.push({ inum: inv.invoiceNumber, idt: fmtDate(inv.invoiceDate), val, itms: [{txval, rt: inv.gstRate, iamt}] });
     } else if (inv.invoiceType === 'EXP_WITHOUT_PAY') {
@@ -104,7 +107,7 @@ export function generateGSTR1Sections(invoices: GSTInvoice[], _companyStateCode:
   return {
     b2b:  Array.from(b2bMap.entries()).map(([ctin, inv]) => ({ ctin, inv })),
     b2cs: Array.from(b2csMap.values()),
-    b2cl: Array.from(b2clMap.entries()).map(([ctin, inv]) => ({ ctin, inv })),
+    b2cl: Array.from(b2clMap.entries()).map(([pos, inv]) => ({ pos, inv })),
     exp,
     cdnr: [], cdnur: [],
   };

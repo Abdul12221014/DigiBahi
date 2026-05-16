@@ -7,7 +7,6 @@ export interface GSTNExportMeta {
   gstin: string;
   companyStateCode: number;
   returnPeriod: string; // 'YYYY-MM'
-  fp: string;           // 'MMYYYY' — derived automatically
 }
 
 function toFP(returnPeriod: string): string {

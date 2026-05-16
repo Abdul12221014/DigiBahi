@@ -3,7 +3,7 @@ import { useGSTInvoices } from '../hooks/useGSTInvoices';
 import { useCompanyGSTProfile } from '../hooks/useCompanyGSTProfile';
 import { TaxSummaryPanel } from './TaxSummaryPanel';
 import { ErrorInbox } from './ErrorInbox';
-import { GSTProfileBanner } from './GSTProfileSetup';
+import { GSTProfileBanner, GSTProfileSetup } from './GSTProfileSetup';
 import { InvoiceEntryForm } from './InvoiceEntryForm';
 import { downloadGSTR1, downloadGSTR3B } from '../services/gst-export.service';
 import { FilingStatusBar } from './FilingStatusBar';
@@ -21,6 +21,7 @@ type FormMode = { type: 'add' } | { type: 'edit'; invoice: GSTInvoice } | null;
 export function GSTDashboard() {
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [formMode, setFormMode] = useState<FormMode>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const profileHook = useCompanyGSTProfile();
   const { profile } = profileHook;
 
@@ -34,18 +35,35 @@ export function GSTDashboard() {
   const warningCount = invoices.filter(i => i.validationStatus === 'WARNING').length;
   const validCount   = invoices.filter(i => i.validationStatus === 'VALID').length;
 
-  const meta = { gstin, companyStateCode, returnPeriod: period, fp: '' };
+  const meta = { gstin, companyStateCode, returnPeriod: period };
 
   return (
     <div className="space-y-5 p-4">
       {/* Profile banner — dismisses once GSTIN is saved */}
       <GSTProfileBanner profileHook={profileHook} />
 
+      {/* Inline GSTIN editor — shown when user clicks "Edit GSTIN" */}
+      {editingProfile && (
+        <div className="border rounded-lg p-4 bg-white shadow-sm">
+          <GSTProfileSetup profileHook={profileHook} onDone={() => setEditingProfile(false)} />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">GST Returns</h2>
-          {gstin && <p className="text-xs text-gray-500 font-mono">{gstin}</p>}
+          {gstin && (
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-500 font-mono">{gstin}</p>
+              <button
+                onClick={() => setEditingProfile(e => !e)}
+                className="text-xs text-blue-500 hover:underline"
+              >
+                {editingProfile ? 'Cancel' : 'Edit GSTIN'}
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -185,6 +203,11 @@ export function GSTDashboard() {
       {invoices.length > 0 && (
         <div className="border rounded-lg p-4 bg-white shadow-sm">
           <h3 className="font-semibold text-sm text-gray-700 mb-3">Export for GSTN Portal</h3>
+          {!profileReady && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2">
+              Configure your GSTIN before exporting — the portal requires a valid GSTIN in the file.
+            </p>
+          )}
           {errorCount > 0 && (
             <p className="text-xs text-red-600 mb-2">
               {errorCount} invoice(s) with errors will be excluded from export.
@@ -193,13 +216,15 @@ export function GSTDashboard() {
           <div className="flex gap-3 flex-wrap">
             <button
               onClick={() => downloadGSTR1(invoices, meta)}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              disabled={!profileReady}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Download GSTR-1 JSON
             </button>
             <button
               onClick={() => downloadGSTR3B(invoices, meta)}
-              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+              disabled={!profileReady}
+              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Download GSTR-3B JSON
             </button>

@@ -97,7 +97,10 @@ export function FilingStatusBar({ returnPeriod, onChanged }: Props) {
           )}
           {status.canMarkFiled && (
             <button
-              onClick={() => act(() => markAsFiled(returnPeriod), n => `${n} invoice(s) marked as filed`)}
+              onClick={() => {
+                if (!window.confirm(`Mark ${status.staged} invoice(s) as FILED? This cannot be undone.`)) return;
+                act(() => markAsFiled(returnPeriod), n => `${n} invoice(s) marked as filed`);
+              }}
               disabled={busy}
               className="text-sm px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
             >

@@ -102,10 +102,21 @@ describe('GSTR-1 Generator', () => {
     expect(sections.b2b).toHaveLength(2);
   });
 
-  test('B2CL invoice appears in b2cl section', () => {
+  test('B2CL invoice appears in b2cl section grouped by pos (not ctin)', () => {
     const inv = base({ invoiceType: 'B2CL', buyerGstin: undefined, isInterState: true, igstPaise: 18000, cgstPaise: 0, sgstPaise: 0, placeOfSupply: 27 });
     const sections = generateGSTR1Sections([inv], 29);
     expect(sections.b2cl).toHaveLength(1);
+    // GSTN portal groups B2CL by place of supply, not by buyer GSTIN
+    expect(sections.b2cl[0].pos).toBe('27');
+    expect((sections.b2cl[0] as Record<string, unknown>).ctin).toBeUndefined();
+  });
+
+  test('two B2CL invoices with same POS merge into one group', () => {
+    const inv1 = base({ invoiceType: 'B2CL', buyerGstin: undefined, isInterState: true, igstPaise: 18000, cgstPaise: 0, sgstPaise: 0, placeOfSupply: 27 });
+    const inv2 = base({ invoiceType: 'B2CL', buyerGstin: undefined, isInterState: true, igstPaise: 9000, cgstPaise: 0, sgstPaise: 0, placeOfSupply: 27, invoiceNumber: 'INV-002' });
+    const sections = generateGSTR1Sections([inv1, inv2], 29);
+    expect(sections.b2cl).toHaveLength(1);
+    expect(sections.b2cl[0].inv).toHaveLength(2);
   });
 
   test('empty invoices array returns empty sections', () => {

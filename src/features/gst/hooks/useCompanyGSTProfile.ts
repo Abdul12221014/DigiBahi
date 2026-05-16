@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getGSTProfile, saveGSTProfile, type GSTProfile } from '../services/gst-profile.service';
 
 export interface UseCompanyGSTProfileResult {
@@ -14,7 +14,7 @@ export function useCompanyGSTProfile(): UseCompanyGSTProfileResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -24,14 +24,14 @@ export function useCompanyGSTProfile(): UseCompanyGSTProfileResult {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const save = async (gstin: string, companyStateCode: number) => {
+  const save = useCallback(async (gstin: string, companyStateCode: number) => {
     await saveGSTProfile(gstin, companyStateCode);
     await load();
-  };
+  }, [load]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   return { profile, loading, error, save, refresh: load };
 }

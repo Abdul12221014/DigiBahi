@@ -59,6 +59,7 @@ interface Props {
 
 function defaultForm(returnPeriod: string, companyStateCode: number, initial?: GSTInvoice): InvoiceFormData & { taxableValueRupees: number } {
   if (initial) {
+    const t = initial.invoiceType;
     return {
       returnPeriod: initial.returnPeriod,
       invoiceNumber: initial.invoiceNumber,
@@ -70,6 +71,12 @@ function defaultForm(returnPeriod: string, companyStateCode: number, initial?: G
       placeOfSupply: initial.placeOfSupply,
       reverseCharge: initial.reverseCharge,
       hsnCode: initial.hsnCode ?? '',
+      // Restore classification flags so re-save doesn't silently reclassify
+      isExport: t === 'EXP_WITH_PAY' || t === 'EXP_WITHOUT_PAY',
+      exportWithPayment: t === 'EXP_WITH_PAY' || t === 'SEZ_WITH_PAY',
+      isSEZ: t === 'SEZ_WITH_PAY' || t === 'SEZ_WITHOUT_PAY',
+      isCredit: t === 'CDNR' || t === 'CDNUR',
+      cessRate: 0, // cess rate can't be derived from stored paise; user must re-enter if non-zero
     };
   }
   const today = new Date().toISOString().slice(0, 10);
