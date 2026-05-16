@@ -2,6 +2,7 @@ export { GSTDashboard } from './components/GSTDashboard';
 export { TaxSummaryPanel } from './components/TaxSummaryPanel';
 export { ErrorInbox } from './components/ErrorInbox';
 export { GSTProfileSetup, GSTProfileBanner } from './components/GSTProfileSetup';
+export { InvoiceEntryForm } from './components/InvoiceEntryForm';
 export { useGSTInvoices } from './hooks/useGSTInvoices';
 export { useCompanyGSTProfile } from './hooks/useCompanyGSTProfile';
 export { classifyInvoice } from './services/invoice-classifier.service';

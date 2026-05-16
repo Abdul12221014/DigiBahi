@@ -4,7 +4,9 @@ import { useCompanyGSTProfile } from '../hooks/useCompanyGSTProfile';
 import { TaxSummaryPanel } from './TaxSummaryPanel';
 import { ErrorInbox } from './ErrorInbox';
 import { GSTProfileBanner } from './GSTProfileSetup';
+import { InvoiceEntryForm } from './InvoiceEntryForm';
 import { downloadGSTR1, downloadGSTR3B } from '../services/gst-export.service';
+import type { GSTInvoice } from '../types/gst-invoice.types';
 
 const STATUS_COLOR: Record<string, string> = {
   VALID:   'text-green-600',
@@ -13,8 +15,11 @@ const STATUS_COLOR: Record<string, string> = {
   PENDING: 'text-gray-400',
 };
 
+type FormMode = { type: 'add' } | { type: 'edit'; invoice: GSTInvoice } | null;
+
 export function GSTDashboard() {
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
+  const [formMode, setFormMode] = useState<FormMode>(null);
   const profileHook = useCompanyGSTProfile();
   const { profile } = profileHook;
 
@@ -53,8 +58,27 @@ export function GSTDashboard() {
           >
             Refresh
           </button>
+          <button
+            onClick={() => setFormMode({ type: 'add' })}
+            className="text-xs bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700"
+          >
+            + Add Invoice
+          </button>
         </div>
       </div>
+
+      {/* Invoice entry / edit form */}
+      {formMode && (
+        <div className="border rounded-lg p-4 bg-white shadow-sm">
+          <InvoiceEntryForm
+            companyStateCode={companyStateCode}
+            returnPeriod={period}
+            initialData={formMode.type === 'edit' ? formMode.invoice : undefined}
+            onSaved={() => { setFormMode(null); refresh(); }}
+            onCancel={() => setFormMode(null)}
+          />
+        </div>
+      )}
 
       {error && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
@@ -95,6 +119,7 @@ export function GSTDashboard() {
                   <th className="p-2 text-right">GST</th>
                   <th className="p-2 text-left">Status</th>
                   <th className="p-2 text-left">Filing</th>
+                  <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -111,6 +136,16 @@ export function GSTDashboard() {
                         {inv.validationStatus}
                       </td>
                       <td className="p-2 text-xs text-gray-400">{inv.filingStatus}</td>
+                      <td className="p-2">
+                        {inv.filingStatus === 'PENDING' && (
+                          <button
+                            onClick={() => setFormMode({ type: 'edit', invoice: inv })}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
