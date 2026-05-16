@@ -81,7 +81,7 @@ function defaultForm(returnPeriod: string, companyStateCode: number, initial?: G
     buyerName: '',
     taxableValueRupees: 0,
     gstRate: 18,
-    placeOfSupply: companyStateCode,
+    placeOfSupply: companyStateCode || 29,  // default to Karnataka when not configured
     reverseCharge: false,
     hsnCode: '',
   };

@@ -71,7 +71,7 @@ export function generateGSTR1Sections(invoices: GSTInvoice[], _companyStateCode:
     };
 
     if (inv.invoiceType === 'B2B' || inv.invoiceType === 'B2B_RCM') {
-      const g = inv.buyerGstin!;
+      const g = inv.buyerGstin ?? 'UNKNOWN';  // buyerGstin always set for B2B by classifier
       if (!b2bMap.has(g)) b2bMap.set(g, []);
       b2bMap.get(g)!.push(invItem);
     } else if (inv.invoiceType === 'B2CS') {

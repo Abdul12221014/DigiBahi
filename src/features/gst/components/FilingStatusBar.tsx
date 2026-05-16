@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getFilingStatus, stageForFiling, unstageForFiling, markAsFiled, type FilingStatus } from '../services/filing.service';
 
 interface Props {
@@ -11,13 +11,13 @@ export function FilingStatusBar({ returnPeriod, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setStatus(await getFilingStatus(returnPeriod));
     } catch { /* ignore */ }
-  }
+  }, [returnPeriod]);
 
-  useEffect(() => { load(); }, [returnPeriod]);
+  useEffect(() => { load(); }, [load]);
 
   async function act(fn: () => Promise<{ affected: number }>, successTpl: (n: number) => string) {
     setBusy(true);

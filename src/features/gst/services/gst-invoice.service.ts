@@ -104,7 +104,7 @@ export function computeInvoiceFields(
     ledgerId: 0,  // caller can set via optional override
     returnPeriod,
     invoiceType,
-    buyerGstin: buyerGstin?.trim().toUpperCase(),
+    buyerGstin: buyerGstin?.trim().toUpperCase() || undefined,  // never store empty string
     buyerName,
     invoiceNumber,
     invoiceDate,

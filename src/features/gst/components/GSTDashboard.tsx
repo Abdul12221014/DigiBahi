@@ -26,6 +26,7 @@ export function GSTDashboard() {
 
   const gstin = profile?.gstin ?? '';
   const companyStateCode = profile?.companyStateCode ?? 0;
+  const profileReady = !profileHook.loading && companyStateCode > 0;
 
   const { invoices, validations, summary, loading, error, refresh } = useGSTInvoices(period);
 
@@ -61,7 +62,9 @@ export function GSTDashboard() {
           </button>
           <button
             onClick={() => setFormMode({ type: 'add' })}
-            className="text-xs bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700"
+            disabled={!profileReady}
+            title={!profileReady ? 'Configure your GSTIN first' : undefined}
+            className="text-xs bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             + Add Invoice
           </button>
@@ -160,19 +163,23 @@ export function GSTDashboard() {
         </p>
       )}
 
-      {/* Validation issues */}
-      <ErrorInbox
-        invoices={invoices}
-        validations={validations}
-        companyStateCode={companyStateCode || undefined}
-        onFixed={refresh}
-      />
+      {/* Validation issues — only when there are invoices to validate */}
+      {invoices.length > 0 && (
+        <ErrorInbox
+          invoices={invoices}
+          validations={validations}
+          companyStateCode={companyStateCode || undefined}
+          onFixed={refresh}
+        />
+      )}
 
       {/* Filing workflow */}
       <FilingStatusBar returnPeriod={period} onChanged={refresh} />
 
-      {/* Tax summary */}
-      {summary && <TaxSummaryPanel summary={summary} returnPeriod={period} />}
+      {/* Tax summary — only when there are invoices */}
+      {invoices.length > 0 && summary && (
+        <TaxSummaryPanel summary={summary} returnPeriod={period} />
+      )}
 
       {/* Export */}
       {invoices.length > 0 && (

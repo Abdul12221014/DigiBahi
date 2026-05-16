@@ -77,9 +77,10 @@ export function GSTProfileSetup({ profileHook, onDone }: Props) {
 /** Inline banner shown at the top of GSTDashboard when GSTIN is not configured. */
 export function GSTProfileBanner({ profileHook }: { profileHook: UseCompanyGSTProfileResult }) {
   const [expanded, setExpanded] = useState(false);
-  const { profile } = profileHook;
+  const { profile, loading } = profileHook;
 
-  if (profile?.isConfigured) return null;
+  // Don't flash the banner while the profile is still loading from Dexie
+  if (loading || profile?.isConfigured) return null;
 
   return (
     <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
