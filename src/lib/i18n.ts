@@ -19,7 +19,7 @@ const resources = {
       settings: 'Settings',
       whatsapp: 'WhatsApp',
       upi: 'UPI',
-      gstReports: 'GST Reports',
+      gstReturns: 'GST Returns',
 
       // Ledger
       date: 'Date',
@@ -102,7 +102,7 @@ const resources = {
       exportBackup: 'Export Backup',
       importBackup: 'Import Backup',
 
-      // GST Reports
+      // GST Returns
       gstSummary: 'GST Summary',
       taxableAmount: 'Taxable Amount',
       cgst: 'CGST',
@@ -153,7 +153,7 @@ const resources = {
       settings: 'सेटिंग्स',
       whatsapp: 'व्हाट्सएप',
       upi: 'यूपीआई',
-      gstReports: 'जीएसटी रिपोर्ट',
+      gstReturns: 'जीएसटी रिटर्न',
 
       // Ledger
       date: 'तारीख',
@@ -236,7 +236,7 @@ const resources = {
       exportBackup: 'बैकअप निर्यात करें',
       importBackup: 'बैकअप आयात करें',
 
-      // GST Reports
+      // GST Returns
       gstSummary: 'जीएसटी सारांश',
       taxableAmount: 'कर योग्य राशि',
       cgst: 'सीजीएसटी',

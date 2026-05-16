@@ -44,7 +44,7 @@ export function GSTDashboard() {
       {/* Header */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">GST Compliance</h2>
+          <h2 className="text-lg font-semibold">GST Returns</h2>
           {gstin && <p className="text-xs text-gray-500 font-mono">{gstin}</p>}
         </div>
         <div className="flex gap-2 items-center">

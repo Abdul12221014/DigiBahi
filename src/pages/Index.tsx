@@ -32,7 +32,7 @@ const ENABLE_UPI = import.meta.env.VITE_ENABLE_UPI !== 'false';
 const ENABLE_GST_REPORTS = import.meta.env.VITE_ENABLE_GST_REPORTS === 'true';
 const ENABLE_INVENTORY = import.meta.env.VITE_ENABLE_INVENTORY === 'true';
 
-// Lazy load GST Reports component - always available but conditionally rendered
+// Lazy load GST Returns component - always available but conditionally rendered
 const GSTReports = lazy(() => import('@/features/reports/gst/GSTReports'));
 
 // Lazy load Inventory component - conditionally rendered
@@ -231,9 +231,9 @@ const Index = () => {
                   </TabsTrigger>
                 )}
                 {ENABLE_GST_REPORTS && (
-                  <TabsTrigger value="gst-reports" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
+                  <TabsTrigger value="gst-returns" className="touch-friendly px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-smooth rounded-md">
                     <FileText className="w-4 h-4 mr-2" />
-                    GST Reports
+                    GST Returns
                   </TabsTrigger>
                 )}
                 {ENABLE_INVENTORY && (
@@ -302,8 +302,8 @@ const Index = () => {
             )}
 
             {ENABLE_GST_REPORTS && (
-              <TabsContent value="gst-reports">
-                <Suspense fallback={<div className="p-6 text-center animate-pulse">🔄 Loading GST Reports...</div>}>
+              <TabsContent value="gst-returns">
+                <Suspense fallback={<div className="p-6 text-center animate-pulse">🔄 Loading GST Returns...</div>}>
                   <GSTReports />
                 </Suspense>
               </TabsContent>
