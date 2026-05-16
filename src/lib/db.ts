@@ -2,6 +2,7 @@ import Dexie, { Table } from 'dexie';
 import type { UPIIntent, UPIReconcileRequest } from '@/features/payments/types/upi.types';
 import type { AnalyticsEvent } from './analytics';
 import type { Item, StockTxn } from '@/features/inventory/types/inventory.types';
+import type { GSTInvoice, GSTValidation } from '@/features/gst/types/gst-invoice.types';
 
 export interface User {
   id?: number;
@@ -137,6 +138,8 @@ export class DigBahiDB extends Dexie {
   analyticsEvents!: Table<AnalyticsEvent>;
   loginAttempts!: Table<LoginAttempt>;
   auditLog!: Table<AuditLogEntry>;
+  gstInvoices!: Table<GSTInvoice>;
+  gstValidations!: Table<GSTValidation>;
 
   constructor() {
     super('digbahi');
@@ -288,6 +291,24 @@ export class DigBahiDB extends Dexie {
         if (!user.passwordSalt) user.passwordSalt = '';
         if (!user.passwordHash || !user.passwordSalt) user.mustResetPassword = true;
       });
+    });
+
+    this.version(12).stores({
+      users:            '++id, username, email, phone, role, isActive',
+      ledger:           '++id, date, type, party_name, customer_id, synced_at, created_by',
+      gstRecords:       '++id, ledgerId, status, createdAt',
+      upiIntents:       'id, upiId, status, createdAt',
+      syncQueue:        'id, txnRef, timestamp',
+      items:            '++id,nameKey,sku,gstRate,unit,createdAt',
+      stockTxns:        '++id,itemId,date,refLedgerId,type',
+      companySettings:  '++id',
+      customerContacts: '++id, phone, name, synced_at, remote_id',
+      creditEntries:    '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:  '++id, name, synced, timestamp, session_id',
+      loginAttempts:    '++id, userId, timestamp, success',
+      auditLog:         '++id, userId, timestamp, action',
+      gstInvoices:      '++id, ledgerId, returnPeriod, invoiceType, validationStatus, filingStatus, buyerGstin',
+      gstValidations:   '++id, gstInvoiceId, ruleCode, severity, fixedAt',
     });
   }
 }
