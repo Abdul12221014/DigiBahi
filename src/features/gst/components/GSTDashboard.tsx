@@ -160,7 +160,12 @@ export function GSTDashboard() {
       )}
 
       {/* Validation issues */}
-      <ErrorInbox invoices={invoices} validations={validations} />
+      <ErrorInbox
+        invoices={invoices}
+        validations={validations}
+        companyStateCode={companyStateCode || undefined}
+        onFixed={refresh}
+      />
 
       {/* Tax summary */}
       {summary && <TaxSummaryPanel summary={summary} returnPeriod={period} />}

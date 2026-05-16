@@ -13,5 +13,8 @@ export { generateGSTR1Sections } from './services/gstr1-generator.service';
 export { generateGSTR3BSections } from './services/gstr3b-generator.service';
 export { downloadGSTR1, downloadGSTR3B, buildGSTR1JSON, buildGSTR3BJSON } from './services/gst-export.service';
 export { getGSTProfile, saveGSTProfile, normaliseProfile, stateCodeFromGSTIN } from './services/gst-profile.service';
+export { computeFix, applyAllFixes, FIXABLE_RULES } from './services/autofix.service';
+export { saveGSTInvoice, updateGSTInvoice, deleteGSTInvoice, getGSTInvoice, computeInvoiceFields } from './services/gst-invoice.service';
+export type { InvoiceFormData, ComputedInvoice } from './services/gst-invoice.service';
 export type { GSTInvoice, GSTValidation, InvoiceType, ValidationStatus, FilingStatus } from './types/gst-invoice.types';
 export type { GSTProfile } from './services/gst-profile.service';
