@@ -88,6 +88,7 @@ export interface CompanySettings {
   businessName: string;
   address?: string;
   gstin?: string;
+  companyStateCode?: number;  // 2-digit Indian state code derived from GSTIN
   phone?: string;
   email?: string;
   updated_at: string;

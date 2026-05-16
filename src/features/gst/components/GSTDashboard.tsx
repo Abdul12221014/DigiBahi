@@ -1,13 +1,10 @@
 import { useState } from 'react';
 import { useGSTInvoices } from '../hooks/useGSTInvoices';
+import { useCompanyGSTProfile } from '../hooks/useCompanyGSTProfile';
 import { TaxSummaryPanel } from './TaxSummaryPanel';
 import { ErrorInbox } from './ErrorInbox';
+import { GSTProfileBanner } from './GSTProfileSetup';
 import { downloadGSTR1, downloadGSTR3B } from '../services/gst-export.service';
-
-interface Props {
-  gstin: string;
-  companyStateCode: number;
-}
 
 const STATUS_COLOR: Record<string, string> = {
   VALID:   'text-green-600',
@@ -16,8 +13,14 @@ const STATUS_COLOR: Record<string, string> = {
   PENDING: 'text-gray-400',
 };
 
-export function GSTDashboard({ gstin, companyStateCode }: Props) {
+export function GSTDashboard() {
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
+  const profileHook = useCompanyGSTProfile();
+  const { profile } = profileHook;
+
+  const gstin = profile?.gstin ?? '';
+  const companyStateCode = profile?.companyStateCode ?? 0;
+
   const { invoices, validations, summary, loading, error, refresh } = useGSTInvoices(period);
 
   const errorCount   = invoices.filter(i => i.validationStatus === 'ERROR').length;
@@ -26,21 +29,16 @@ export function GSTDashboard({ gstin, companyStateCode }: Props) {
 
   const meta = { gstin, companyStateCode, returnPeriod: period, fp: '' };
 
-  function handleDownloadGSTR1() {
-    downloadGSTR1(invoices, meta);
-  }
-
-  function handleDownloadGSTR3B() {
-    downloadGSTR3B(invoices, meta);
-  }
-
   return (
     <div className="space-y-5 p-4">
+      {/* Profile banner — dismisses once GSTIN is saved */}
+      <GSTProfileBanner profileHook={profileHook} />
+
       {/* Header */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">GST Compliance</h2>
-          <p className="text-xs text-gray-500">{gstin}</p>
+          {gstin && <p className="text-xs text-gray-500 font-mono">{gstin}</p>}
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -67,9 +65,9 @@ export function GSTDashboard({ gstin, companyStateCode }: Props) {
       {/* Stats strip */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Valid', count: validCount, cls: 'text-green-700 bg-green-50 border-green-200' },
-          { label: 'Warnings', count: warningCount, cls: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
-          { label: 'Errors', count: errorCount, cls: 'text-red-700 bg-red-50 border-red-200' },
+          { label: 'Valid',     count: validCount,   cls: 'text-green-700 bg-green-50 border-green-200' },
+          { label: 'Warnings',  count: warningCount, cls: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+          { label: 'Errors',    count: errorCount,   cls: 'text-red-700 bg-red-50 border-red-200' },
         ].map(s => (
           <div key={s.label} className={`border rounded-lg p-3 text-center ${s.cls}`}>
             <div className="text-2xl font-bold">{s.count}</div>
@@ -83,8 +81,8 @@ export function GSTDashboard({ gstin, companyStateCode }: Props) {
         <p className="text-sm text-gray-500">Loading…</p>
       ) : invoices.length > 0 ? (
         <div className="border rounded-lg overflow-hidden shadow-sm">
-          <div className="px-4 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600 flex justify-between">
-            <span>Invoices ({invoices.length})</span>
+          <div className="px-4 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600">
+            Invoices ({invoices.length})
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -96,6 +94,7 @@ export function GSTDashboard({ gstin, companyStateCode }: Props) {
                   <th className="p-2 text-right">Taxable</th>
                   <th className="p-2 text-right">GST</th>
                   <th className="p-2 text-left">Status</th>
+                  <th className="p-2 text-left">Filing</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,6 +110,7 @@ export function GSTDashboard({ gstin, companyStateCode }: Props) {
                       <td className={`p-2 text-xs font-medium ${STATUS_COLOR[inv.validationStatus]}`}>
                         {inv.validationStatus}
                       </td>
+                      <td className="p-2 text-xs text-gray-400">{inv.filingStatus}</td>
                     </tr>
                   );
                 })}
@@ -141,20 +141,20 @@ export function GSTDashboard({ gstin, companyStateCode }: Props) {
           )}
           <div className="flex gap-3 flex-wrap">
             <button
-              onClick={handleDownloadGSTR1}
+              onClick={() => downloadGSTR1(invoices, meta)}
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
               Download GSTR-1 JSON
             </button>
             <button
-              onClick={handleDownloadGSTR3B}
+              onClick={() => downloadGSTR3B(invoices, meta)}
               className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
             >
               Download GSTR-3B JSON
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Upload these files directly at the GSTN portal under Returns → File Returns.
+            Upload at GSTN portal → Returns → File Returns.
           </p>
         </div>
       )}

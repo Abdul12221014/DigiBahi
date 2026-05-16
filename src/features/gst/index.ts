@@ -1,7 +1,9 @@
 export { GSTDashboard } from './components/GSTDashboard';
 export { TaxSummaryPanel } from './components/TaxSummaryPanel';
 export { ErrorInbox } from './components/ErrorInbox';
+export { GSTProfileSetup, GSTProfileBanner } from './components/GSTProfileSetup';
 export { useGSTInvoices } from './hooks/useGSTInvoices';
+export { useCompanyGSTProfile } from './hooks/useCompanyGSTProfile';
 export { classifyInvoice } from './services/invoice-classifier.service';
 export { splitTax, toPaise, toRupees } from './services/tax-splitter.service';
 export { runValidation, getValidationStatus } from './services/validation-pipeline.service';
@@ -9,4 +11,6 @@ export { validateGSTIN, getStateFromGSTIN, isValidGSTINFormat } from './services
 export { generateGSTR1Sections } from './services/gstr1-generator.service';
 export { generateGSTR3BSections } from './services/gstr3b-generator.service';
 export { downloadGSTR1, downloadGSTR3B, buildGSTR1JSON, buildGSTR3BJSON } from './services/gst-export.service';
+export { getGSTProfile, saveGSTProfile, normaliseProfile, stateCodeFromGSTIN } from './services/gst-profile.service';
 export type { GSTInvoice, GSTValidation, InvoiceType, ValidationStatus, FilingStatus } from './types/gst-invoice.types';
+export type { GSTProfile } from './services/gst-profile.service';
