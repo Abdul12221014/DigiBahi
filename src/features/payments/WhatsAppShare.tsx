@@ -26,6 +26,10 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { shareWithFallback } from '@/lib/shareRetry';
 
 import { generateInvoicePDF, type InvoiceData } from '@/lib/invoiceGenerator';
+import { createDelivery, updateDeliveryStatus } from '@/features/deliveries/services/delivery.service';
+import { logOTPEvent } from '@/features/deliveries/services/otp-event.service';
+import { toE164 } from '@/lib/countryCode';
+import { db } from '@/lib/db';
 
 export function WhatsAppShare() {
   const [customerName, setCustomerName] = useState('');
@@ -48,6 +52,7 @@ export function WhatsAppShare() {
   const [showOTPInUI, setShowOTPInUI] = useState(false);
   const [otpCopied, setOtpCopied] = useState(false);
   const [localOtpAttempts, setLocalOtpAttempts] = useState(0);
+  const [activeDeliveryId, setActiveDeliveryId] = useState<number | null>(null);
   const LOCAL_OTP_MAX_ATTEMPTS = 5;
 
   const otpTimer = useOTPTimer(60);
@@ -188,15 +193,19 @@ export function WhatsAppShare() {
 
     analytics.track('otp_requested', { phone: customerPhone });
 
+    const e164Phone = toE164(customerPhone, country.dialCode);
+    logOTPEvent({ eventType: 'requested', channel: 'whatsapp_api', customerPhone: e164Phone, success: true, attemptNumber: 1 }).catch(console.error);
+
     // Try WhatsApp Business API first (backend integration)
     try {
       const result = await whatsappAPIService.sendOTP(customerPhone, 'digbahi_otp');
-      
+
       if (result.success) {
         // OTP sent successfully via WhatsApp Business API
         setOtpSent(true);
         setShowOTPInUI(false);
-        
+        logOTPEvent({ eventType: 'sent', channel: 'whatsapp_api', customerPhone: e164Phone, rawOTP: result.otp_code, success: true, attemptNumber: 1 }).catch(console.error);
+
         // Store OTP for verification (backend returns it in dev mode, but we'll use sessionStorage as backup)
         if (result.otp_code) {
           setGeneratedOTP(result.otp_code);
@@ -305,9 +314,11 @@ export function WhatsAppShare() {
           toast.warning('Popup blocked. OTP displayed below. You can copy and send manually.');
           setShowOTPInUI(true);
           setOtpSent(true);
+          logOTPEvent({ eventType: 'sent', channel: 'ui_display', customerPhone: e164Phone, rawOTP: newOTP, success: true, attemptNumber: 1 }).catch(console.error);
         } else {
           setOtpSent(true);
           setShowOTPInUI(false);
+          logOTPEvent({ eventType: 'sent', channel: 'whatsapp_wame', customerPhone: e164Phone, rawOTP: newOTP, success: true, attemptNumber: 1 }).catch(console.error);
           toast.info('WhatsApp opened! Please click SEND in WhatsApp to deliver the OTP message.', {
             duration: 5000,
           });
@@ -355,6 +366,7 @@ export function WhatsAppShare() {
         otpTimer.reset();
         analytics.track('otp_verified', { method: 'backend' });
         toast.success('OTP verified successfully');
+        logOTPEvent({ eventType: 'verified', channel: 'whatsapp_api', customerPhone: toE164(customerPhone, country.dialCode), success: true, attemptNumber: localOtpAttempts + 1, deliveryId: activeDeliveryId ?? undefined }).catch(console.error);
         // Clear stored OTP after successful verification
         sessionStorage.removeItem(`otp_${customerPhone}`);
         return;
@@ -499,7 +511,26 @@ export function WhatsAppShare() {
     }
 
     setShareStatus('generating');
+    let localDeliveryId: number | null = null;
     try {
+      // Create delivery record (queued) before attempting share
+      try {
+        localDeliveryId = await createDelivery({
+          invoiceNumber: previewNextInvoiceNumber(),
+          customerName:  customerName.trim(),
+          customerPhone: toE164(customerPhone, country.dialCode),
+          amount:        parseFloat(amount) || 0,
+          gstAmount:     0,
+          totalAmount:   0,
+          description:   description.trim(),
+          date,
+          channel:       'whatsapp_api',
+        });
+        setActiveDeliveryId(localDeliveryId);
+      } catch (deliveryErr) {
+        console.error('Failed to create delivery record:', deliveryErr);
+      }
+
       // Recalculate amount to ensure we have the latest value
       const currentAmountNum = parseFloat(amount) || 0;
       if (currentAmountNum <= 0) {
@@ -554,6 +585,20 @@ export function WhatsAppShare() {
         return;
       }
       
+      // Transition to sending — rotates idempotency key
+      if (localDeliveryId !== null) {
+        await updateDeliveryStatus(localDeliveryId, 'sending', {
+          source: 'client_estimate',
+          detail: `PDF generated: Invoice_${invoiceNumToUse}.pdf`,
+        }).catch(console.error);
+        await db.invoiceDeliveries.update(localDeliveryId, {
+          gstAmount:     currentGstCalculation.gstAmount,
+          totalAmount:   currentGstCalculation.totalAmount,
+          invoiceNumber: invoiceNumToUse,
+          pdfFilename:   `Invoice_${invoiceNumToUse}.pdf`,
+        }).catch(console.error);
+      }
+
       // Prepare WhatsApp message text
       const message = `Invoice ${invoiceNumToUse}\n` +
         `Customer: ${invoiceData.customerName}\n` +
@@ -573,6 +618,12 @@ export function WhatsAppShare() {
         if (method === 'wa_me') setShareStatus('wa_me');
       });
       toast.success('Invoice shared successfully!');
+      if (localDeliveryId !== null) {
+        await updateDeliveryStatus(localDeliveryId, 'sent', {
+          source: 'client_estimate',
+          detail: 'Shared via WhatsApp',
+        }).catch(console.error);
+      }
 
       // Auto-create ledger entry
       let ledgerEntryId: number | undefined;
@@ -598,7 +649,7 @@ export function WhatsAppShare() {
       // If credit payment, create credit entry (even if ledger entry failed)
       if (paymentMethod === 'credit') {
         try {
-          await createCreditEntry({
+          const creditId = await createCreditEntry({
             invoiceNumber: invoiceNumToUse,
             ledgerEntryId, // May be undefined if ledger creation failed
             customerName: invoiceData.customerName,
@@ -610,6 +661,9 @@ export function WhatsAppShare() {
             otpVerified: true,
             otpVerifiedAt: new Date().toISOString(),
           });
+          if (localDeliveryId !== null && creditId) {
+            await db.invoiceDeliveries.update(localDeliveryId, { creditEntryId: creditId as number }).catch(console.error);
+          }
           toast.success('Credit entry created');
         } catch (creditError) {
           console.error('Failed to create credit entry:', creditError);
@@ -636,7 +690,8 @@ export function WhatsAppShare() {
       setOtpSent(false);
       setShowOTPInUI(false);
       setOtpCopied(false);
-      
+      setActiveDeliveryId(null);
+
       // Clear OTP from sessionStorage
       if (oldPhone) {
         sessionStorage.removeItem(`otp_${oldPhone}`);
@@ -644,6 +699,12 @@ export function WhatsAppShare() {
       
     } catch (error) {
       console.error('Share error:', error);
+      if (localDeliveryId !== null) {
+        await updateDeliveryStatus(localDeliveryId, 'failed', {
+          source: 'client_estimate',
+          failureReason: error instanceof Error ? error.message : 'Unknown error',
+        }).catch(console.error);
+      }
       toast.error('Failed to share invoice');
     } finally {
       setTimeout(() => setShareStatus('idle'), 1000);
