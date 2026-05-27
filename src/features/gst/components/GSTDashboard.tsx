@@ -7,6 +7,7 @@ import { GSTProfileBanner, GSTProfileSetup } from './GSTProfileSetup';
 import { InvoiceEntryForm } from './InvoiceEntryForm';
 import { downloadGSTR1, downloadGSTR3B } from '../services/gst-export.service';
 import { FilingStatusBar } from './FilingStatusBar';
+import { deleteGSTInvoice } from '../services/gst-invoice.service';
 import type { GSTInvoice } from '../types/gst-invoice.types';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -17,11 +18,14 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 type FormMode = { type: 'add' } | { type: 'edit'; invoice: GSTInvoice } | null;
+type DeleteTarget = { invoice: GSTInvoice } | null;
 
 export function GSTDashboard() {
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [deleting, setDeleting] = useState(false);
   const profileHook = useCompanyGSTProfile();
   const { profile } = profileHook;
 
@@ -30,6 +34,18 @@ export function GSTDashboard() {
   const profileReady = !profileHook.loading && companyStateCode > 0;
 
   const { invoices, validations, summary, loading, error, refresh } = useGSTInvoices(period);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget?.invoice?.id) return;
+    setDeleting(true);
+    try {
+      await deleteGSTInvoice(deleteTarget.invoice.id);
+      setDeleteTarget(null);
+      refresh();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const errorCount   = invoices.filter(i => i.validationStatus === 'ERROR').length;
   const warningCount = invoices.filter(i => i.validationStatus === 'WARNING').length;
@@ -159,14 +175,22 @@ export function GSTDashboard() {
                       </td>
                       <td className="p-2 text-xs text-gray-400">{inv.filingStatus}</td>
                       <td className="p-2">
-                        {inv.filingStatus === 'PENDING' && (
+                        <div className="flex gap-2">
+                          {inv.filingStatus === 'PENDING' && (
+                            <button
+                              onClick={() => setFormMode({ type: 'edit', invoice: inv })}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Edit
+                            </button>
+                          )}
                           <button
-                            onClick={() => setFormMode({ type: 'edit', invoice: inv })}
-                            className="text-xs text-blue-600 hover:underline"
+                            onClick={() => setDeleteTarget({ invoice: inv })}
+                            className="text-xs text-red-500 hover:underline"
                           >
-                            Edit
+                            Delete
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -232,6 +256,41 @@ export function GSTDashboard() {
           <p className="text-xs text-gray-400 mt-2">
             Upload at GSTN portal → Returns → File Returns.
           </p>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="font-semibold text-base mb-2 text-gray-900">Delete Invoice?</h3>
+            <p className="text-sm text-gray-600 mb-1">
+              Invoice <span className="font-mono font-medium">{deleteTarget.invoice.invoiceNumber}</span> from period{' '}
+              <span className="font-medium">{deleteTarget.invoice.returnPeriod}</span> will be marked as deleted.
+            </p>
+            {deleteTarget.invoice.filingStatus !== 'PENDING' && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2">
+                This invoice is in <strong>{deleteTarget.invoice.filingStatus}</strong> status. GST records must be
+                retained for 6 years (Section 35). The record will be soft-deleted and remain in your audit trail.
+              </p>
+            )}
+            <div className="flex gap-3 mt-4 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

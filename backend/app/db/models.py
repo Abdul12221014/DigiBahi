@@ -42,6 +42,9 @@ class User(Base):
     device_id = Column(String, index=True)
     role = Column(String, default="employee", nullable=False)  # owner | accountant | employee
     created_at = Column(DateTime, default=_utcnow)
+    # Brute-force lockout — persisted so restarts don't reset attempt counters.
+    failed_attempts = Column(Integer, default=0, nullable=False, server_default="0")
+    locked_until = Column(DateTime, nullable=True)  # None = not locked
 
 class UserRole(Base):
     __tablename__ = "user_roles"

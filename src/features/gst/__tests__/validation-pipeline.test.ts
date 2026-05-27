@@ -58,4 +58,25 @@ describe('Validation Pipeline', () => {
     // placeOfSupply=6 (different state) but isInterState=false (using CGST+SGST)
     expect(runValidation({ ...valid, placeOfSupply: 6, isInterState: false }).some(r => r.ruleCode === 'POS-002')).toBe(true);
   });
+
+  test('reverse charge without GSTIN → ERROR RC-001', () => {
+    expect(runValidation({ ...valid, buyerGstin: undefined, reverseCharge: true }).some(r => r.ruleCode === 'RC-001')).toBe(true);
+  });
+
+  test('reverse charge with GSTIN present → no RC-001', () => {
+    expect(runValidation({ ...valid, reverseCharge: true }).some(r => r.ruleCode === 'RC-001')).toBe(false);
+  });
+
+  test('reverse charge on B2CS → ERROR RC-002', () => {
+    expect(runValidation({ ...valid, buyerGstin: undefined, reverseCharge: true, invoiceType: 'B2CS' }).some(r => r.ruleCode === 'RC-002')).toBe(true);
+  });
+
+  test('reverse charge on B2B → no RC-002', () => {
+    expect(runValidation({ ...valid, reverseCharge: true, invoiceType: 'B2B' }).some(r => r.ruleCode === 'RC-002')).toBe(false);
+  });
+
+  test('no reverse charge flag → no RC rules fire', () => {
+    const results = runValidation({ ...valid, reverseCharge: false, invoiceType: 'B2B' });
+    expect(results.some(r => r.ruleCode === 'RC-001' || r.ruleCode === 'RC-002')).toBe(false);
+  });
 });

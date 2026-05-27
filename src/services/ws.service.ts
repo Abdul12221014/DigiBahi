@@ -1,4 +1,5 @@
 import { getWebSocketUrl, getApiBaseUrl } from '@/lib/api-config';
+import { sessionService } from '@/services/session.service';
 
 export interface WsMessage { type: string; data?: unknown; }
 
@@ -32,7 +33,14 @@ async function wakeupBackend(): Promise<void> {
 
 export function connectWS() {
   try {
-    socket = new WebSocket(getWebSocketUrl());
+    const session = sessionService.loadSession();
+    if (!session) {
+      // No valid session — skip WS connection. Will retry after login.
+      const delay = getRetryDelay();
+      setTimeout(connectWS, delay);
+      return;
+    }
+    socket = new WebSocket(getWebSocketUrl(session.token));
 
     socket.onopen = () => {
       // Connected successfully — reset retry backoff

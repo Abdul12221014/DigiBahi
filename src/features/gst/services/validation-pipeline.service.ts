@@ -1,4 +1,4 @@
-import type { GSTValidation, ValidationSeverity } from '../types/gst-invoice.types';
+import type { GSTValidation, InvoiceType, ValidationSeverity } from '../types/gst-invoice.types';
 import { validateGSTIN } from './gstin-validator.service';
 
 export interface ValidationInput {
@@ -8,6 +8,8 @@ export interface ValidationInput {
   placeOfSupply: number;
   companyStateCode: number;
   isInterState: boolean;
+  reverseCharge?: boolean;
+  invoiceType?: InvoiceType;
   taxableValuePaise: number;
   igstPaise: number;
   cgstPaise: number;
@@ -36,7 +38,8 @@ function rule(
 export function runValidation(input: ValidationInput): ValidationResult[] {
   const results: ValidationResult[] = [];
   const { buyerGstin, invoiceNumber, invoiceDate, placeOfSupply,
-          companyStateCode, isInterState, igstPaise, cgstPaise, sgstPaise,
+          companyStateCode, isInterState, reverseCharge, invoiceType,
+          igstPaise, cgstPaise, sgstPaise,
           totalPaise, taxableValuePaise, cessPaise } = input;
 
   // GST-001: GSTIN format
@@ -135,6 +138,22 @@ export function runValidation(input: ValidationInput): ValidationResult[] {
       `Place of Supply (state ${placeOfSupply}) is your own state but IGST applied`,
       'This is intra-state. Switch to CGST+SGST and set IGST to 0',
       'placeOfSupply'));
+  }
+
+  // RC-001: Reverse charge requires a registered buyer (GSTIN mandatory)
+  if (reverseCharge && !buyerGstin) {
+    results.push(rule('RC-001', 'ERROR',
+      'Reverse Charge Mechanism (RCM) requires the buyer to be GST-registered — GSTIN is mandatory',
+      'Add the buyer GSTIN or remove the reverse charge flag. RCM cannot apply to unregistered buyers',
+      'buyerGstin'));
+  }
+
+  // RC-002: Reverse charge cannot apply to B2CS (unregistered small consumers)
+  if (reverseCharge && (invoiceType === 'B2CS' || invoiceType === 'B2CL')) {
+    results.push(rule('RC-002', 'ERROR',
+      `Reverse charge cannot apply to ${invoiceType} (unregistered consumer) supplies`,
+      'RCM is only valid for B2B transactions with registered recipients. Change invoice type or remove reverse charge',
+      'invoiceType', invoiceType));
   }
 
   return results;

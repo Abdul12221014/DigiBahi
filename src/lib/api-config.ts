@@ -33,14 +33,15 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * Get the WebSocket URL
+ * Get the WebSocket URL with session token as query param.
+ * The backend validates the token on upgrade and closes with 1008 if invalid.
  */
-export function getWebSocketUrl(): string {
+export function getWebSocketUrl(sessionToken?: string): string {
   const baseUrl = getApiBaseUrl();
-  // Convert http:// to ws:// and https:// to wss://
   const wsProtocol = baseUrl.startsWith('https') ? 'wss:' : 'ws:';
   const url = new URL(baseUrl.replace(/^https?:/, wsProtocol));
-  return `${url.origin}/api/v1/sync/ws`;
+  const wsUrl = `${url.origin}/api/v1/sync/ws`;
+  return sessionToken ? `${wsUrl}?token=${encodeURIComponent(sessionToken)}` : wsUrl;
 }
 
 /**

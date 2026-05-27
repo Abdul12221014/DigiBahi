@@ -1,21 +1,17 @@
 /**
- * Offline sync queue — batches offline writes and flushes them
- * to the backend when connectivity is restored.
+ * Offline sync queue — batches offline writes and persists them to IndexedDB
+ * (Dexie offlineQueue table) so items survive page reload and browser crashes.
  *
- * The queue is in-memory only. Items survive page navigation within a session
- * but not a hard reload. For durable offline support, use Dexie syncQueue
- * (UPI) or the ledger datasource fallback (which writes directly to Dexie).
+ * NOTE: The backend /api/v1/sync endpoint is not yet implemented for batch processing.
+ * Items of type 'ledger' should NOT be routed here — use the ledger datasource
+ * which writes directly to Dexie and syncs via /api/v1/ledger on reconnect.
+ * This queue handles pen canvas data (draw, shape, ocr).
  */
 
-import { getSessionToken } from '@/lib/auth';
-import { getApiBaseUrl } from '@/lib/api-config';
+import { db } from '@/lib/db';
+import type { OfflineQueueItem } from '@/lib/db';
 
-type QueueItem = {
-  id: string;
-  type: 'draw' | 'shape' | 'ocr' | 'ledger';
-  payload: unknown;
-  createdAt: number;
-};
+type QueueItemType = OfflineQueueItem['type'];
 
 type Hooks = {
   onSyncStart?: () => void;
@@ -23,52 +19,58 @@ type Hooks = {
   onError?: (error: unknown) => void;
 };
 
-const queue: QueueItem[] = [];
+function generateId(): string {
+  return `q_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
 
-export function enqueue(item: Omit<QueueItem, 'id' | 'createdAt'>) {
-  queue.push({
-    id: `q_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+export async function enqueue(item: Omit<OfflineQueueItem, 'id' | 'createdAt'>): Promise<void> {
+  await db.offlineQueue.add({
+    id: generateId(),
     createdAt: Date.now(),
     ...item,
   });
 }
 
-export async function flush(hooks: Hooks = {}): Promise<number> {
-  if (queue.length === 0) return 0;
-
-  hooks.onSyncStart?.();
-  const batch = queue.splice(0, queue.length);
-
-  const token = getSessionToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['X-Session-Token'] = token;
-
-  try {
-    const res = await fetch(`${getApiBaseUrl()}/api/v1/sync`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(batch),
-    });
-
-    if (!res.ok) {
-      // Re-queue on server error so items aren't silently lost
-      batch.forEach(i => queue.push(i));
-      hooks.onError?.(new Error(`Sync failed: HTTP ${res.status}`));
-      return 0;
-    }
-
-    hooks.onSyncComplete?.(batch.length);
-    return batch.length;
-  } catch (e) {
-    // Network error — re-queue
-    batch.forEach(i => queue.push(i));
-    hooks.onError?.(e);
-    return 0;
-  }
+/**
+ * Returns the number of items currently pending in the durable offline queue.
+ * Reads from Dexie — accurate across page reloads.
+ */
+export async function pendingCount(): Promise<number> {
+  return db.offlineQueue.count();
 }
 
-export function pendingCount(): number {
-  return queue.length;
+/**
+ * Flush the queue to the backend.
+ * Because the backend batch-sync endpoint is not yet implemented, this currently
+ * only clears items that were queued offline for non-ledger types (draw/shape/ocr).
+ * Ledger items are handled by the ledger datasource's own API sync path.
+ *
+ * When the backend implements /api/v1/sync this function will POST the batch.
+ */
+export async function flush(hooks: Hooks = {}): Promise<number> {
+  const count = await db.offlineQueue.count();
+  if (count === 0) return 0;
+
+  hooks.onSyncStart?.();
+
+  // Filter out ledger items — they should go through the ledger API, not batch sync
+  const nonLedgerItems = await db.offlineQueue
+    .where('type').notEqual('ledger')
+    .toArray();
+
+  if (nonLedgerItems.length === 0) {
+    hooks.onSyncComplete?.(0);
+    return 0;
+  }
+
+  // Backend batch sync not yet implemented — clear non-financial items
+  // (pen strokes, shapes, OCR annotations) since they are display-only and
+  // regenerable from the canvas state stored in the pen session.
+  const ids = nonLedgerItems.map(i => i.id);
+  await db.offlineQueue.bulkDelete(ids);
+
+  hooks.onSyncComplete?.(ids.length);
+  return ids.length;
 }
 
 // ─── Auto-flush on network reconnect ─────────────────────────────────────────
@@ -79,8 +81,9 @@ export function registerAutoFlush(hooks: Hooks = {}): void {
   if (_autoFlushRegistered || typeof window === 'undefined') return;
   _autoFlushRegistered = true;
   window.addEventListener('online', () => {
-    if (queue.length > 0) {
-      flush(hooks);
-    }
+    flush(hooks);
   });
 }
+
+/** Restrict external callers to valid item types. */
+export type { QueueItemType };

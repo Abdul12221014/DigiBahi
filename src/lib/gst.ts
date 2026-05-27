@@ -10,16 +10,27 @@ export interface GSTCalculation {
   totalAmount: number;
 }
 
+/**
+ * @deprecated Use `splitTax()` from `@/features/gst/services/tax-splitter.service`
+ * which works in integer paise and avoids floating-point accumulation errors.
+ * This function performs float arithmetic and rounds per-call — acceptable for
+ * one-off display, NOT safe for accumulated totals or GSTR filing.
+ */
 export function calculateGST(amount: number, rate: GSTRate): GSTCalculation {
   const gstAmount = (amount * rate) / 100;
   return {
     baseAmount: amount,
     gstRate: rate,
     gstAmount: Math.round(gstAmount * 100) / 100,
-    totalAmount: Math.round((amount + gstAmount) * 100) / 100
+    totalAmount: Math.round((amount + gstAmount) * 100) / 100,
   };
 }
 
+/**
+ * @deprecated Use `splitTax()` from `@/features/gst/services/tax-splitter.service`
+ * which returns `taxableValuePaise` directly without reverse-computing from totals.
+ * This function loses precision when `totalAmount` is not a round-paise value.
+ */
 export function extractBaseAmount(totalAmount: number, rate: GSTRate): number {
   const baseAmount = (totalAmount * 100) / (100 + rate);
   return Math.round(baseAmount * 100) / 100;

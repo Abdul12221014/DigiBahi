@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from ...api.deps import get_current_session
+from ...main import limiter
 import pytesseract
 from typing import Optional
 import base64
@@ -52,7 +53,8 @@ class OCRRequest(BaseModel):
     target_field: Optional[str] = None
 
 @router.post("/recognize")
-def recognize(req: OCRRequest, _session=Depends(get_current_session)):
+@limiter.limit("10/minute")
+def recognize(http_request: Request, req: OCRRequest, _session=Depends(get_current_session)):
     try:
         img_bytes = base64.b64decode(req.image_base64)
     except Exception as exc:
@@ -73,7 +75,8 @@ def recognize(req: OCRRequest, _session=Depends(get_current_session)):
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {exc}")
 
 @router.post("/recognize-cloud")
-def recognize_cloud(req: OCRRequest, _session=Depends(get_current_session)):
+@limiter.limit("10/minute")
+def recognize_cloud(http_request: Request, req: OCRRequest, _session=Depends(get_current_session)):
     if not VISION_ENABLED:
         raise HTTPException(status_code=501, detail="Google Cloud Vision is not configured on this server.")
     try:

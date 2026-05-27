@@ -68,7 +68,7 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   const [showPartySuggestions, setShowPartySuggestions] = useState(false);
 
   // Phase 5: OCR Integration
-  const { autoFill } = useOCRAutoFill({
+  const { autoFill, ocrLowConfidenceFields, clearOCRHighlight } = useOCRAutoFill({
     setAmount,
     setPartyName,
     setDate,
@@ -469,6 +469,9 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
               <Label htmlFor="party_name" className="flex items-center gap-2">
                 <User className="w-4 h-4" />
                 Party Name
+                {ocrLowConfidenceFields.party_name && (
+                  <span className="text-xs text-amber-600 font-normal">OCR filled — verify</span>
+                )}
               </Label>
               <div className="relative">
                 <Input
@@ -479,12 +482,13 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
                   onChange={(e) => {
                     setPartyName(e.target.value);
                     setShowPartySuggestions(true);
+                    if (ocrLowConfidenceFields.party_name) clearOCRHighlight('party_name');
                   }}
                   onFocus={() => setShowPartySuggestions(true)}
                   onBlur={() => setTimeout(() => setShowPartySuggestions(false), 200)}
                   placeholder="Customer/Vendor name"
                   maxLength={100}
-                  className="touch-friendly pr-10"
+                  className={`touch-friendly pr-10 ${ocrLowConfidenceFields.party_name ? 'ring-2 ring-amber-400 border-amber-400' : ''}`}
                 />
                 <button
                   type="button"
@@ -566,16 +570,22 @@ export function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
               <Label htmlFor="amount" className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4" />
                 Amount (₹)
+                {ocrLowConfidenceFields.amount && (
+                  <span className="text-xs text-amber-600 font-normal">OCR filled — verify</span>
+                )}
               </Label>
               <Input
                 id="amount"
                 type="number"
                 step="0.01"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  if (ocrLowConfidenceFields.amount) clearOCRHighlight('amount');
+                }}
                 placeholder="0.00"
                 required
-                className="touch-friendly"
+                className={`touch-friendly ${ocrLowConfidenceFields.amount ? 'ring-2 ring-amber-400 border-amber-400' : ''}`}
               />
             </div>
 

@@ -13,6 +13,7 @@ from ...db import models
 from ...db import schemas
 from ..deps import get_current_session, require_owner, require_owner_or_accountant
 from ...db.models import User
+from ...services.audit_service import record_action
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,13 @@ def create_ledger_entry(entry: schemas.LedgerEntryCreate, db: Session = Depends(
         
         db.commit()
         db.refresh(db_entry)
-        
+
+        record_action(
+            db, _user.id,
+            "ledger.create",
+            f"id={db_entry.id} amount={db_entry.amount} party={db_entry.party_name or ''} type={db_entry.type}",
+        )
+
         # Broadcast WebSocket event (full entry data to match inventory pattern)
         broadcast_event({
             "type": "ledger_entry_created",
@@ -244,7 +251,13 @@ def update_ledger_entry(
     try:
         db.commit()
         db.refresh(db_entry)
-        
+
+        record_action(
+            db, _user.id,
+            "ledger.update",
+            f"id={db_entry.id} amount={db_entry.amount} party={db_entry.party_name or ''} type={db_entry.type}",
+        )
+
         # Broadcast update event
         broadcast_event({
             "type": "ledger_entry_updated",
@@ -289,7 +302,13 @@ def delete_ledger_entry(id: int, db: Session = Depends(get_db), _user: User = De
     
     try:
         db.commit()
-        
+
+        record_action(
+            db, _user.id,
+            "ledger.delete",
+            f"id={id} amount={db_entry.amount} party={db_entry.party_name or ''} type={db_entry.type}",
+        )
+
         # Broadcast delete event
         broadcast_event({
             "type": "ledger_entry_deleted",

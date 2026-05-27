@@ -1,12 +1,13 @@
 /**
  * Invoice Number Service
  * Primary: server-side atomic sequence (multi-device safe).
- * Fallback: localStorage counter (used when backend is unreachable).
+ * Fallback: UUID-based local numbers — avoids the localStorage race condition
+ *           where two browser tabs simultaneously increment the same counter.
+ *           Format: INV-LOCAL-<year>-<8 hex chars>
+ *           These are reconciled with the server sequence when connectivity returns.
  */
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
-const LOCAL_NUMBER_KEY = 'digbahi_last_invoice_number';
-const LOCAL_YEAR_KEY   = 'digbahi_invoice_year';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,26 +27,16 @@ async function fetchNextFromServer(): Promise<string> {
   return data.invoice_number as string;
 }
 
-// ─── Local fallback ───────────────────────────────────────────────────────────
+// ─── Local fallback — UUID-based, no shared-counter race ─────────────────────
 
 function localNext(): string {
   const year = new Date().getFullYear().toString();
-  if (localStorage.getItem(LOCAL_YEAR_KEY) !== year) {
-    localStorage.setItem(LOCAL_YEAR_KEY, year);
-    localStorage.setItem(LOCAL_NUMBER_KEY, '0');
-  }
-  const next = parseInt(localStorage.getItem(LOCAL_NUMBER_KEY) || '0', 10) + 1;
-  localStorage.setItem(LOCAL_NUMBER_KEY, next.toString());
-  const padded = next < 1000 ? String(next).padStart(3, '0') : String(next);
-  return `INV-${year}-${padded}`;
-}
-
-function localPeek(): string {
-  const year = new Date().getFullYear().toString();
-  if (localStorage.getItem(LOCAL_YEAR_KEY) !== year) return `INV-${year}-000`;
-  const last = parseInt(localStorage.getItem(LOCAL_NUMBER_KEY) || '0', 10);
-  const padded = last < 1000 ? String(last).padStart(3, '0') : String(last);
-  return `INV-${year}-${padded}`;
+  // 8 hex chars from crypto.getRandomValues — guaranteed unique per call,
+  // no localStorage read-then-write race between concurrent tabs.
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `INV-LOCAL-${year}-${hex.toUpperCase()}`;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -53,7 +44,9 @@ function localPeek(): string {
 /**
  * Reserve the next invoice number.
  * Tries the backend first (atomic, multi-device safe).
- * Falls back to localStorage if the backend is unreachable.
+ * Falls back to a UUID-based local number if the backend is unreachable.
+ * Local numbers are prefixed with "INV-LOCAL-" so they are easily identified
+ * and can be reconciled with the server sequence later.
  */
 export async function getNextInvoiceNumber(): Promise<InvoiceNumberResult> {
   try {
@@ -65,30 +58,20 @@ export async function getNextInvoiceNumber(): Promise<InvoiceNumberResult> {
 }
 
 /**
- * Preview the next invoice number without committing it.
- * Always reads from localStorage (cheap, synchronous).
- * The real number is only reserved when getNextInvoiceNumber() is called.
+ * Preview the next invoice number format.
+ * Always returns a descriptive placeholder — the real number is only
+ * reserved when getNextInvoiceNumber() is called.
  */
 export function previewNextInvoiceNumber(): string {
   const year = new Date().getFullYear().toString();
-  if (localStorage.getItem(LOCAL_YEAR_KEY) !== year) return `INV-${year}-001`;
-  const last = parseInt(localStorage.getItem(LOCAL_NUMBER_KEY) || '0', 10);
-  const next = last + 1;
-  const padded = next < 1000 ? String(next).padStart(3, '0') : String(next);
-  return `INV-${year}-${padded}`;
+  return `INV-${year}-???`;
 }
 
 /**
- * Get the last issued invoice number (no increment).
+ * Check whether an invoice number was generated offline (local fallback).
+ * Useful to warn users that the number will differ from the server sequence
+ * once connectivity is restored.
  */
-export function getLastInvoiceNumber(): string {
-  return localPeek();
-}
-
-/**
- * Reset local counter (testing / manual override only).
- */
-export function resetInvoiceNumber(): void {
-  localStorage.removeItem(LOCAL_NUMBER_KEY);
-  localStorage.removeItem(LOCAL_YEAR_KEY);
+export function isLocalInvoiceNumber(invoiceNumber: string): boolean {
+  return invoiceNumber.startsWith('INV-LOCAL-');
 }

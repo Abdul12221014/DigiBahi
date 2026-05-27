@@ -156,6 +156,8 @@ export async function applyAllFixes(
     placeOfSupply: working.placeOfSupply,
     companyStateCode,
     isInterState: working.isInterState,
+    reverseCharge: working.reverseCharge,
+    invoiceType: working.invoiceType,
     taxableValuePaise: working.taxableValuePaise,
     igstPaise: working.igstPaise,
     cgstPaise: working.cgstPaise,

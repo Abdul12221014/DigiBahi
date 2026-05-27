@@ -48,6 +48,12 @@ export interface GSTInvoice {
   validationStatus: ValidationStatus;
   filingStatus: FilingStatus;
 
+  // Audit & multi-user fields (added v13)
+  createdBy?: number;             // user.id of creator; null = legacy records
+  isDeleted?: boolean;            // soft-delete flag — GST records must be retained 6 years
+  deletedAt?: string | null;      // ISO timestamp of soft-delete
+  deletedBy?: number | null;      // user.id who deleted
+
   createdAt: string;
   updatedAt: string;
 }

@@ -23,7 +23,9 @@ export function useGSTInvoices(returnPeriod: string): GSTInvoicesState {
     setLoading(true);
     setError(null);
     try {
-      const invs = await db.gstInvoices.where('returnPeriod').equals(returnPeriod).toArray();
+      const all = await db.gstInvoices.where('returnPeriod').equals(returnPeriod).toArray();
+      // Exclude soft-deleted invoices from all active views
+      const invs = all.filter(i => !i.isDeleted);
       const ids = invs.map(i => i.id!).filter(Boolean);
       const vals = ids.length
         ? await db.gstValidations.where('gstInvoiceId').anyOf(ids).toArray()

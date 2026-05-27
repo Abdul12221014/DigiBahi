@@ -1,10 +1,22 @@
 import os
 import sys
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from .db.base import Base, engine
+
+# ─── Rate limiter (shared instance) ─────────────────────────────────────────
+# Key: X-Device-ID header when present, falls back to IP.
+# Import this in routers that need rate limits: from app.main import limiter
+def _device_or_ip(request: Request) -> str:
+    return request.headers.get("X-Device-ID") or get_remote_address(request)
+
+limiter = Limiter(key_func=_device_or_ip)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,13 +60,32 @@ except ImportError as e:
     federated_router = None
     FEDERATED_AVAILABLE = False
 
+def _run_safe_migrations(conn) -> None:
+    """Add new columns to existing tables without Alembic.
+    Uses SQLite's permissive ALTER TABLE — each statement is idempotent
+    because we catch the 'duplicate column name' error and continue.
+    """
+    migrations = [
+        "ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN locked_until DATETIME",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except Exception:
+            # Column already exists — safe to ignore
+            conn.rollback()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import asyncio
-    # Create all tables once at startup — idempotent, safe on existing schemas.
-    # Route files no longer call create_all() individually.
     import app.db.models  # ensure all model classes are imported before create_all
     Base.metadata.create_all(bind=engine)
+    # Add any new columns to existing tables (idempotent, safe on re-runs)
+    with engine.connect() as conn:
+        _run_safe_migrations(conn)
     # Store the running event loop so sync route handlers can dispatch WS
     # broadcasts via run_coroutine_threadsafe (avoids private _get_running_loop).
     from .api.v1.sync_ws import set_event_loop
@@ -63,6 +94,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="DigBahi Local API", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 origins = [o.strip() for o in cors_env.split(",")]
@@ -74,6 +107,29 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Session-Token", "Authorization"],
 )
+
+# ─── Security headers middleware ──────────────────────────────────────────────
+# Interim S2 mitigation: blocks inline script XSS until session tokens migrate
+# to HttpOnly cookies. CSP restricts script sources to self + Vite dev server.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # Block inline scripts — the primary XSS vector for localStorage token theft.
+    # 'self' + the CORS origins list (which includes the Vite dev server) are permitted.
+    script_origins = " ".join(origins)
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; "
+        f"script-src 'self' {script_origins}; "
+        f"style-src 'self' 'unsafe-inline'; "
+        f"connect-src 'self' {script_origins} ws: wss:; "
+        f"img-src 'self' data: blob:; "
+        f"frame-ancestors 'none'"
+    )
+    return response
 app.include_router(health_router)
 app.include_router(ledger_router)
 app.include_router(sync_router)

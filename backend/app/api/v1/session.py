@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 def _utcnow() -> datetime:
@@ -8,7 +7,6 @@ def _utcnow() -> datetime:
 from secrets import token_urlsafe
 from typing import Optional
 import hashlib
-import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
@@ -22,41 +20,42 @@ router = APIRouter(prefix="/api/v1/session")
 
 SESSION_TTL_MIN = 60 * 24  # 24 hours
 
-# ─── Brute-force protection ───────────────────────────────────────────────────
-# In-memory per-device attempt tracker. Survives process restarts only within
-# the same uvicorn process — sufficient for LAN kiosk deployments.
+# ─── Brute-force protection (DB-backed, survives restarts) ───────────────────
 _MAX_ATTEMPTS = 5
-_LOCKOUT_SECONDS = 15 * 60  # 15 minutes
-
-# {device_id: {"attempts": int, "locked_until": float}}
-_login_attempts = defaultdict(lambda: {"attempts": 0, "locked_until": 0.0})
+_LOCKOUT_DURATION = timedelta(minutes=15)
 
 
-def _check_lockout(device_id: str) -> None:
-    state = _login_attempts[device_id]
-    if state["locked_until"] > time.monotonic():
-        remaining = int(state["locked_until"] - time.monotonic())
-        locked_until_iso = (_utcnow() + timedelta(seconds=remaining)).isoformat()
+def _check_lockout(device_id: str, db: DBSession) -> None:
+    """Raise 423 if the device is currently locked out (from DB)."""
+    user = db.query(User).filter(User.device_id == device_id).first()
+    if user and user.locked_until and user.locked_until > _utcnow():
+        remaining = int((user.locked_until - _utcnow()).total_seconds())
         raise HTTPException(
-            status_code=423,  # 423 Locked — auth.ts maps this to locked:true + UI countdown
+            status_code=423,
             detail={
                 "message": f"Too many failed attempts. Try again in {remaining} seconds.",
-                "locked_until": locked_until_iso,
+                "locked_until": user.locked_until.isoformat(),
                 "retry_after_seconds": remaining,
             }
         )
 
 
-def _record_failure(device_id: str) -> None:
-    state = _login_attempts[device_id]
-    state["attempts"] += 1
-    if state["attempts"] >= _MAX_ATTEMPTS:
-        state["locked_until"] = time.monotonic() + _LOCKOUT_SECONDS
-        logger.warning("Device %s locked out after %d failed PIN attempts", device_id, _MAX_ATTEMPTS)
+def _record_failure(user: Optional[User], device_id: str, db: DBSession) -> None:
+    """Increment failure counter in DB; lock if threshold exceeded."""
+    if user is None:
+        return  # Can't track unknown device without a user row
+    user.failed_attempts = (user.failed_attempts or 0) + 1
+    if user.failed_attempts >= _MAX_ATTEMPTS:
+        user.locked_until = _utcnow() + _LOCKOUT_DURATION
+        logger.warning("Device %s (user %s) locked after %d failures", device_id, user.id, _MAX_ATTEMPTS)
+    db.commit()
 
 
-def _clear_attempts(device_id: str) -> None:
-    _login_attempts[device_id] = {"attempts": 0, "locked_until": 0.0}
+def _clear_attempts(user: User, db: DBSession) -> None:
+    """Reset failure counter on successful login."""
+    user.failed_attempts = 0
+    user.locked_until = None
+    db.commit()
 
 
 # ─── Models ───────────────────────────────────────────────────────────────────
@@ -105,7 +104,7 @@ def session_login(body: LoginRequest, db: DBSession = Depends(get_db)):
     device_id = body.device_id
 
     # Check lockout before any DB query so we don't reveal user existence
-    _check_lockout(device_id)
+    _check_lockout(device_id, db)
 
     try:
         # Look up user by identifier (modern path) or device_id (legacy path)
@@ -124,11 +123,11 @@ def session_login(body: LoginRequest, db: DBSession = Depends(get_db)):
         )
 
         if not credential_valid:
-            _record_failure(device_id)
+            _record_failure(user, device_id, db)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Successful — clear failure counter and issue session token
-        _clear_attempts(device_id)
+        _clear_attempts(user, db)
 
         expires = _utcnow() + timedelta(minutes=SESSION_TTL_MIN)
         token = token_urlsafe(32)

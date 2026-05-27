@@ -30,6 +30,9 @@ psutil==5.9.8
 # HTTP requests (WhatsApp API)
 requests==2.31.0
 
+# Rate limiting
+slowapi==0.1.9
+
 # Hardware
 pyserial==3.5
 

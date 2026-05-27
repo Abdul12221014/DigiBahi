@@ -87,6 +87,8 @@ export function computeInvoiceFields(
     placeOfSupply,
     companyStateCode,
     isInterState,
+    reverseCharge,
+    invoiceType,
     taxableValuePaise,
     igstPaise: taxes.igstPaise,
     cgstPaise: taxes.cgstPaise,
@@ -128,10 +130,20 @@ export async function saveGSTInvoice(
   data: InvoiceFormData,
   companyStateCode: number,
   ledgerId = 0,
+  createdBy?: number,
 ): Promise<number> {
   const { invoice, validationResults } = computeInvoiceFields(data, companyStateCode);
   const now = new Date().toISOString();
-  const toStore: GSTInvoice = { ...invoice, ledgerId, createdAt: now, updatedAt: now };
+  const toStore: GSTInvoice = {
+    ...invoice,
+    ledgerId,
+    createdBy,
+    isDeleted: false,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: now,
+    updatedAt: now,
+  };
 
   return db.transaction('rw', db.gstInvoices, db.gstValidations, async () => {
     const id = await db.gstInvoices.add(toStore);
@@ -212,11 +224,18 @@ export async function updateGSTInvoice(
   });
 }
 
-/** Delete an invoice and all its validation records. */
-export async function deleteGSTInvoice(id: number): Promise<void> {
-  await db.transaction('rw', db.gstInvoices, db.gstValidations, async () => {
-    await db.gstValidations.where('gstInvoiceId').equals(id).delete();
-    await db.gstInvoices.delete(id);
+/**
+ * Soft-delete an invoice — sets isDeleted=true, records who and when.
+ * The row is NEVER physically removed: GST rules (Section 35) require records
+ * to be retained for 6 years. Hard deletes are forbidden on financial data.
+ */
+export async function deleteGSTInvoice(id: number, deletedBy?: number): Promise<void> {
+  const now = new Date().toISOString();
+  await db.gstInvoices.update(id, {
+    isDeleted: true,
+    deletedAt: now,
+    deletedBy: deletedBy ?? null,
+    updatedAt: now,
   });
 }
 

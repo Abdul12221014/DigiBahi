@@ -3,7 +3,7 @@ WhatsApp Business API Endpoints
 Handles OTP, invoice, and report sending via WhatsApp
 """
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -18,6 +18,7 @@ from ...db.base import get_db
 from ...db import models
 from ..deps import get_current_session
 from ...db.models import Session as SessionModel
+from ...main import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/whatsapp", tags=["whatsapp"])
@@ -100,7 +101,8 @@ class SendReportResponse(BaseModel):
 # ─── OTP Endpoints ─────────────────────────────────────────────────────────────
 
 @router.post("/send-otp", response_model=SendOTPResponse)
-async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
+@limiter.limit("3/minute")
+async def send_otp(http_request: Request, request: SendOTPRequest, db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
     """
     Send OTP via WhatsApp Business API.
     OTP is stored in SQLite (survives restarts). Plaintext OTP is never persisted — only a sha256 hash.

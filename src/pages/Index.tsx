@@ -54,6 +54,7 @@ import Header from '@/components/layout/Header';
 import { exportBackup, importBackup } from '@/services/backup.service';
 import { flush } from '@/services/sync.service';
 import useOnline from '@/hooks/useOnline';
+import { OfflineSyncBanner } from '@/components/OfflineSyncBanner';
 
 const Index = () => {
   const { t, i18n } = useTranslation();
@@ -167,6 +168,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <OfflineSyncBanner />
       <Header onOpenPen={() => setShowPenCanvas(true)} />
 
       {/* Main Content */}

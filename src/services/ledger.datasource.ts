@@ -216,9 +216,21 @@ const localDataSource: LedgerDataSource = {
       entries = entries.filter(e => e.date >= params.from! && e.date <= params.to!);
     }
     
-    // Group by party_name
-    const partyData: { [key: string]: { party_name: string; total_sales: number; total_receipts: number; total_purchases: number; transaction_count: number; net_balance: number } } = {};
-    
+    // Group by party_name.
+    // net_receivable = sales − receipts  (what the customer owes us)
+    // net_payable    = purchases − payments (what we owe the supplier)
+    // These must NOT be summed — a party can be both supplier and customer.
+    type PartyRow = {
+      party_name: string;
+      total_sales: number;
+      total_receipts: number;
+      total_purchases: number;
+      transaction_count: number;
+      net_receivable: number;
+      net_payable: number;
+    };
+    const partyData: { [key: string]: PartyRow } = {};
+
     entries.forEach(entry => {
       const partyName = entry.party_name!.trim();
       if (!partyData[partyName]) {
@@ -228,36 +240,46 @@ const localDataSource: LedgerDataSource = {
           total_receipts: 0,
           total_purchases: 0,
           transaction_count: 0,
-          net_balance: 0,
+          net_receivable: 0,
+          net_payable: 0,
         };
       }
-      
+
       const amount = entry.amount + (entry.gstAmount || 0);
       partyData[partyName].transaction_count += 1;
-      
+
       if (entry.type === 'sale') {
         partyData[partyName].total_sales += amount;
-        partyData[partyName].net_balance += amount;
+        partyData[partyName].net_receivable += amount;  // customer owes us more
       } else if (entry.type === 'receipt') {
         partyData[partyName].total_receipts += amount;
-        partyData[partyName].net_balance -= amount;
+        partyData[partyName].net_receivable -= amount;  // customer paid, reduces what they owe
       } else if (entry.type === 'purchase') {
         partyData[partyName].total_purchases += amount;
-        partyData[partyName].net_balance -= amount;
+        partyData[partyName].net_payable += amount;     // we owe supplier more
+      } else if (entry.type === 'expense') {
+        partyData[partyName].total_purchases += amount;
+        partyData[partyName].net_payable += amount;
       }
     });
-    
+
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
     // Sort by transaction count and return top N
     return Object.values(partyData)
       .sort((a, b) => b.transaction_count - a.transaction_count)
       .slice(0, limit)
       .map(party => ({
         party_name: party.party_name,
-        total_sales: Math.round(party.total_sales * 100) / 100,
-        total_receipts: Math.round(party.total_receipts * 100) / 100,
-        total_purchases: Math.round(party.total_purchases * 100) / 100,
+        total_sales: r2(party.total_sales),
+        total_receipts: r2(party.total_receipts),
+        total_purchases: r2(party.total_purchases),
         transaction_count: party.transaction_count,
-        net_balance: Math.round(party.net_balance * 100) / 100,
+        net_receivable: r2(party.net_receivable),
+        net_payable: r2(party.net_payable),
+        // Legacy field kept for backward compatibility — shows receivable for UI components
+        // that only display one balance. New UI should use net_receivable/net_payable directly.
+        net_balance: r2(party.net_receivable),
       }));
   },
 };
