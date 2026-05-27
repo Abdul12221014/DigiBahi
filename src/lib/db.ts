@@ -3,6 +3,15 @@ import type { UPIIntent, UPIReconcileRequest } from '@/features/payments/types/u
 import type { AnalyticsEvent } from './analytics';
 import type { Item, StockTxn } from '@/features/inventory/types/inventory.types';
 import type { GSTInvoice, GSTValidation } from '@/features/gst/types/gst-invoice.types';
+import type { InvoiceDelivery, DeliveryEvent, OTPEvent } from '@/features/deliveries/types/delivery.types';
+
+/** Durable offline queue item — persisted to IndexedDB so items survive page reload. */
+export interface OfflineQueueItem {
+  id: string;                    // client-generated uuid
+  type: 'draw' | 'shape' | 'ocr' | 'ledger';
+  payload: unknown;
+  createdAt: number;             // epoch ms
+}
 
 export interface User {
   id?: number;
@@ -141,6 +150,10 @@ export class DigBahiDB extends Dexie {
   auditLog!: Table<AuditLogEntry>;
   gstInvoices!: Table<GSTInvoice>;
   gstValidations!: Table<GSTValidation>;
+  offlineQueue!: Table<OfflineQueueItem>;
+  invoiceDeliveries!: Table<InvoiceDelivery>;
+  deliveryEvents!:    Table<DeliveryEvent>;
+  otpEvents!:         Table<OTPEvent>;
 
   constructor() {
     super('digbahi');
@@ -310,6 +323,74 @@ export class DigBahiDB extends Dexie {
       auditLog:         '++id, userId, timestamp, action',
       gstInvoices:      '++id, ledgerId, returnPeriod, invoiceType, validationStatus, filingStatus, buyerGstin',
       gstValidations:   '++id, gstInvoiceId, ruleCode, severity, fixedAt',
+    });
+
+    // v13:
+    //   gstInvoices — adds unique &invoiceNumber index, isDeleted, created_by for multi-user isolation.
+    //   offlineQueue — new durable table for the offline sync queue (replaces in-memory array).
+    //
+    // Migration deduplicates invoiceNumber before applying the unique constraint:
+    // if two rows share the same invoiceNumber the second gets a "-DUP-<id>" suffix so
+    // the constraint never fails and users can manually reconcile afterward.
+    this.version(13).stores({
+      users:            '++id, username, email, phone, role, isActive',
+      ledger:           '++id, date, type, party_name, customer_id, synced_at, created_by',
+      gstRecords:       '++id, ledgerId, status, createdAt',
+      upiIntents:       'id, upiId, status, createdAt',
+      syncQueue:        'id, txnRef, timestamp',
+      items:            '++id,nameKey,sku,gstRate,unit,createdAt',
+      stockTxns:        '++id,itemId,date,refLedgerId,type',
+      companySettings:  '++id',
+      customerContacts: '++id, phone, name, synced_at, remote_id',
+      creditEntries:    '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:  '++id, name, synced, timestamp, session_id',
+      loginAttempts:    '++id, userId, timestamp, success',
+      auditLog:         '++id, userId, timestamp, action',
+      // &invoiceNumber = unique index; isDeleted + created_by for multi-user + soft-delete
+      gstInvoices:      '++id, &invoiceNumber, ledgerId, returnPeriod, invoiceType, validationStatus, filingStatus, buyerGstin, isDeleted, created_by',
+      gstValidations:   '++id, gstInvoiceId, ruleCode, severity, fixedAt',
+      offlineQueue:     '&id, type, createdAt',
+    }).upgrade(async (tx) => {
+      // Deduplicate invoiceNumbers before the unique index is applied.
+      const seen = new Set<string>();
+      await tx.table('gstInvoices').toCollection().modify((inv: Record<string, unknown>) => {
+        const num = inv.invoiceNumber as string;
+        if (seen.has(num)) {
+          inv.invoiceNumber = `${num}-DUP-${inv.id}`;
+        } else {
+          seen.add(num);
+        }
+        // Backfill soft-delete defaults for existing rows
+        if (inv.isDeleted == null) inv.isDeleted = false;
+        if (inv.deletedAt == null) inv.deletedAt = null;
+        if (inv.deletedBy == null) inv.deletedBy = null;
+      });
+    });
+
+    // v14: Communication delivery infrastructure.
+    //   invoiceDeliveries — channel-agnostic snapshot of current delivery state.
+    //   deliveryEvents    — append-only immutable status transition log (backend-authoritative).
+    //   otpEvents         — OTP lifecycle audit (fingerprint hash; raw OTP never stored).
+    this.version(14).stores({
+      users:                '++id, username, email, phone, role, isActive',
+      ledger:               '++id, date, type, party_name, customer_id, synced_at, created_by',
+      gstRecords:           '++id, ledgerId, status, createdAt',
+      upiIntents:           'id, upiId, status, createdAt',
+      syncQueue:            'id, txnRef, timestamp',
+      items:                '++id, nameKey, sku, gstRate, unit, createdAt',
+      stockTxns:            '++id, itemId, date, refLedgerId, type',
+      companySettings:      '++id',
+      customerContacts:     '++id, phone, name, synced_at, remote_id',
+      creditEntries:        '++id, invoiceNumber, customerPhone, status',
+      analyticsEvents:      '++id, name, synced, timestamp, session_id',
+      loginAttempts:        '++id, userId, timestamp, success',
+      auditLog:             '++id, userId, timestamp, action',
+      gstInvoices:          '++id, &invoiceNumber, ledgerId, returnPeriod, invoiceType, validationStatus, filingStatus, buyerGstin, isDeleted, created_by',
+      gstValidations:       '++id, gstInvoiceId, ruleCode, severity, fixedAt',
+      offlineQueue:         '&id, type, createdAt',
+      invoiceDeliveries:    '++id, invoiceNumber, customerPhone, channel, status, createdAt, synced_at',
+      deliveryEvents:       '++id, deliveryId, status, timestamp',
+      otpEvents:            '++id, customerPhone, eventType, timestamp, deliveryId',
     });
   }
 }
