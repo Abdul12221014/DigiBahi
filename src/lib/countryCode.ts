@@ -75,3 +75,24 @@ export function formatPhoneDisplay(phone: string, dialCode: string): string {
   }
   return `+${dialCode} ${clean}`;
 }
+
+export function toE164(localPhone: string, dialCode: string): string {
+  if (!localPhone) return '';
+  const clean = localPhone.replace(/\D/g, '').replace(/^0+/, '');
+  return `+${dialCode}${clean}`;
+}
+
+export function parseE164(
+  e164: string,
+  countries: Country[],
+): { dialCode: string; localPhone: string } | null {
+  if (!e164.startsWith('+')) return null;
+  const digits = e164.slice(1);
+  const sorted = [...countries].sort((a, b) => b.dialCode.length - a.dialCode.length);
+  for (const country of sorted) {
+    if (digits.startsWith(country.dialCode)) {
+      return { dialCode: country.dialCode, localPhone: digits.slice(country.dialCode.length) };
+    }
+  }
+  return null;
+}
