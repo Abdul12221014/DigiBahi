@@ -8,6 +8,7 @@
  * - Consent data encrypted in IndexedDB
  */
 
+import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
   saveConsent, 
@@ -285,10 +286,13 @@ describe('Consent Management', () => {
       // Get raw encrypted row from IndexedDB
       const row = await penDB.consent.orderBy('createdAt').reverse().first();
 
+      // Use Object.prototype.toString for cross-realm ArrayBuffer check
+      // (Node.js crypto returns ArrayBuffer from a different realm than jsdom's globalThis.ArrayBuffer)
+      const isAB = (v: unknown) => Object.prototype.toString.call(v) === '[object ArrayBuffer]';
       expect(row).toBeDefined();
-      expect(row?.payload).toBeInstanceOf(ArrayBuffer);
-      expect(row?.iv).toBeInstanceOf(ArrayBuffer);
-      expect(row?.salt).toBeInstanceOf(ArrayBuffer);
+      expect(isAB(row?.payload)).toBe(true);
+      expect(isAB(row?.iv)).toBe(true);
+      expect(isAB(row?.salt)).toBe(true);
 
       // Payload should not be readable as plain text
       const payloadText = new TextDecoder().decode(row!.payload);

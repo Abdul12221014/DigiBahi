@@ -257,18 +257,55 @@ export function drawTemplate(
   height: number,
   options?: TemplateOptions
 ): void {
-  // Map simplified IDs to internal templates
-  let templateKey: LedgerFormatId = 'traditional-khata';
+  if (width <= 0 || height <= 0) return;
 
-  if (id === 'blank' || id === 'modern-minimal') templateKey = 'modern-minimal';
-  else if (id === 'lined') templateKey = 'traditional-khata'; // Fallback for now, or create specific
-  else if (id === 'columnar') templateKey = 'traditional-khata';
-  else if (PAPER_TEMPLATES[id as LedgerFormatId]) templateKey = id as LedgerFormatId;
+  const lineSpacing  = options?.lineSpacing ?? 32;
+  const margin       = options?.margin ?? 0;
+  const color        = options?.color ?? '#94a3b8';
+  const columnCount  = options?.columnCount ?? 3;
 
-  const template = PAPER_TEMPLATES[templateKey];
-  if (template) {
-    template.drawBackground(ctx, width, height);
+  if (id === 'blank' || id === 'modern-minimal') {
+    ctx.clearRect(0, 0, width, height);
+    return;
   }
+
+  if (id === 'lined') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    for (let y = lineSpacing; y < height; y += lineSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(margin, y);
+      ctx.lineTo(width - margin, y);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  if (id === 'columnar') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    for (let y = lineSpacing; y < height; y += lineSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(margin, y);
+      ctx.lineTo(width - margin, y);
+      ctx.stroke();
+    }
+    const colWidth = (width - 2 * margin) / columnCount;
+    for (let i = 1; i < columnCount; i++) {
+      const x = margin + colWidth * i;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // Fall through to legacy templates for LedgerFormatIds
+  const templateKey: LedgerFormatId = PAPER_TEMPLATES[id as LedgerFormatId]
+    ? (id as LedgerFormatId)
+    : 'traditional-khata';
+  PAPER_TEMPLATES[templateKey]?.drawBackground(ctx, width, height);
 }
 
 export function getTemplateThumbnail(

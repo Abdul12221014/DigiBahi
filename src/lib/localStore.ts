@@ -470,12 +470,6 @@ export async function migratePagesToV2(pin?: string): Promise<{ migrated: number
           needsMigration = true;
         }
 
-        // Add sectionId if missing (set to undefined explicitly)
-        if (page.sectionId === undefined) {
-          page.sectionId = undefined;
-          needsMigration = true;
-        }
-
         if (needsMigration) {
           await savePage(page, pin);
           results.migrated++;

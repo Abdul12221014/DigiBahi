@@ -142,3 +142,13 @@ export function runUPITests() {
 
 // Export for use in development
 export default runUPITests;
+
+// ─── Vitest suite ────────────────────────────────────────────────────────────
+
+import { describe, it } from 'vitest';
+
+describe('UPI Service', () => {
+  it('passes all assertions', () => {
+    runUPITests();
+  });
+});

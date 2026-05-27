@@ -46,6 +46,8 @@ interface PendingPointer {
     width: number;
     height: number;
     timeoutId: number;
+    onAccept: (e: React.PointerEvent) => void;
+    onReject: (pointerId: number, reason: string) => void;
 }
 
 interface ActivePointer {
@@ -175,7 +177,7 @@ export function usePalmRejection(customConfig?: Partial<PalmRejectionConfig>) {
                     if (pendingSize > size * 1.5) {
                         clearTimeout(pending.timeoutId);
                         pendingPointersRef.current.delete(id);
-                        onReject(id, `Rejected by smaller stylus touch (${size.toFixed(1)}px vs ${pendingSize.toFixed(1)}px)`);
+                        pending.onReject(id, `Rejected by smaller stylus touch (${size.toFixed(1)}px vs ${pendingSize.toFixed(1)}px)`);
                     }
                 }
             });
@@ -189,7 +191,7 @@ export function usePalmRejection(customConfig?: Partial<PalmRejectionConfig>) {
             const pending = pendingPointersRef.current.get(e.pointerId);
             if (pending) {
                 pendingPointersRef.current.delete(e.pointerId);
-                onAccept(pending.event);
+                pending.onAccept(pending.event);
             }
         }, config.temporalDelayMs);
 
@@ -201,7 +203,9 @@ export function usePalmRejection(customConfig?: Partial<PalmRejectionConfig>) {
             startY: e.clientY,
             width,
             height,
-            timeoutId
+            timeoutId,
+            onAccept,
+            onReject,
         });
     }, [config]);
 
