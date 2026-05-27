@@ -113,7 +113,7 @@ interface DeliveryHistoryPanelProps {
 
 export function DeliveryHistoryPanel({ invoiceNumber, limit, className }: DeliveryHistoryPanelProps) {
   const {
-    deliveries, isLoading, error, isResending,
+    deliveries, isLoading, error, resendingIds,
     resendError, resend, clearResendError,
   } = useDeliveryHistory({ invoiceNumber, limit });
 
@@ -148,7 +148,12 @@ export function DeliveryHistoryPanel({ invoiceNumber, limit, className }: Delive
       )}
 
       {!isLoading && !error && deliveries.length > 0 && deliveries.map(d => (
-        <DeliveryRow key={d.id} delivery={d} onResend={resend} isResending={isResending} />
+        <DeliveryRow
+          key={d.id ?? d.idempotencyKey}
+          delivery={d}
+          onResend={resend}
+          isResending={resendingIds.has(d.id ?? -1)}
+        />
       ))}
     </Card>
   );

@@ -34,7 +34,10 @@ export async function migrateLegacyLedgerDB(targetDB: DigBahiDB = defaultDB): Pr
 
   try {
     const legacyEntries = await legacyDB.table('entries').toArray() as LegacyEntry[];
-    if (legacyEntries.length === 0) return 0;
+    if (legacyEntries.length === 0) {
+      localStorage.setItem(MIGRATION_FLAG, 'true');
+      return 0;
+    }
 
     const existing = await targetDB.ledger.toArray();
     const seen = new Set(existing.map(e => `${e.date}|${e.amount}|${e.description}`));
@@ -59,11 +62,11 @@ export async function migrateLegacyLedgerDB(targetDB: DigBahiDB = defaultDB): Pr
       await targetDB.ledger.bulkAdd(toAdd as LedgerEntry[]);
       migrated = toAdd.length;
     }
+    localStorage.setItem(MIGRATION_FLAG, 'true');
   } catch {
     // Legacy DB absent on fresh installs — expected and safe.
   } finally {
     legacyDB.close();
-    localStorage.setItem(MIGRATION_FLAG, 'true');
   }
 
   return migrated;

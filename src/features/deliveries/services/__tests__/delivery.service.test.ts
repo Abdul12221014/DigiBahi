@@ -5,6 +5,7 @@ import type { InvoiceDelivery, StatusEvent, DeliveryEvent } from '../../types/de
 
 vi.mock('@/lib/db', () => ({
   db: {
+    transaction: vi.fn((_mode: unknown, _tables: unknown, callback: () => unknown) => callback()),
     invoiceDeliveries: {
       add:     vi.fn(),
       get:     vi.fn(),

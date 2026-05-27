@@ -17,6 +17,10 @@ import type {
   WhatsAppWebhookStatusPayload,
 } from '../types/delivery.types';
 
+if (!import.meta.env.VITE_API_URL && import.meta.env.PROD) {
+  console.error('[delivery-api] VITE_API_URL is not set — backend sync will fail in production');
+}
+
 const API_BASE   = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const DELIVERIES = `${API_BASE}/api/v1/deliveries`;
 
@@ -37,6 +41,23 @@ async function request<T>(
   return res.json();
 }
 
+export interface SyncDeliveryPayload {
+  invoiceNumber:   string;
+  customerName:    string;
+  customerPhone:   string;
+  amount:          number;
+  gstAmount:       number;
+  totalAmount:     number;
+  description:     string;
+  date:            string;
+  channel:         InvoiceDelivery['channel'];
+  channelMetadata?: InvoiceDelivery['channelMetadata'];
+  status:          InvoiceDelivery['status'];
+  messageId?:      string;
+  idempotencyKey:  string;
+  pdfFilename?:    string;
+}
+
 export interface SyncDeliveryResponse {
   remote_id: string;
   synced_at: string;
@@ -45,7 +66,23 @@ export interface SyncDeliveryResponse {
 export async function syncDeliveryToBackend(
   delivery: InvoiceDelivery,
 ): Promise<SyncDeliveryResponse> {
-  return request<SyncDeliveryResponse>(DELIVERIES, 'POST', delivery);
+  const payload: SyncDeliveryPayload = {
+    invoiceNumber:   delivery.invoiceNumber,
+    customerName:    delivery.customerName,
+    customerPhone:   delivery.customerPhone,
+    amount:          delivery.amount,
+    gstAmount:       delivery.gstAmount,
+    totalAmount:     delivery.totalAmount,
+    description:     delivery.description,
+    date:            delivery.date,
+    channel:         delivery.channel,
+    channelMetadata: delivery.channelMetadata,
+    status:          delivery.status,
+    messageId:       delivery.messageId,
+    idempotencyKey:  delivery.idempotencyKey,
+    pdfFilename:     delivery.pdfFilename,
+  };
+  return request<SyncDeliveryResponse>(DELIVERIES, 'POST', payload);
 }
 
 export interface ResendResponse {

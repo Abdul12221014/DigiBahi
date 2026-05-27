@@ -25,6 +25,7 @@ interface UseDeliveryHistoryResult {
   isLoading:        boolean;
   error:            string | null;
   isResending:      boolean;
+  resendingIds:     Set<number>;
   resendError:      ResendErrorState | null;
   refresh:          () => void;
   resend:           (id: number) => Promise<void>;
@@ -37,7 +38,7 @@ export function useDeliveryHistory(
   const [deliveries,  setDeliveries]  = useState<InvoiceDelivery[]>([]);
   const [isLoading,   setIsLoading]   = useState(true);
   const [error,       setError]       = useState<string | null>(null);
-  const [isResending, setIsResending] = useState(false);
+  const [resendingIds, setResendingIds] = useState<Set<number>>(new Set());
   const [resendError, setResendError] = useState<ResendErrorState | null>(null);
   const [tick,        setTick]        = useState(0);
 
@@ -62,31 +63,39 @@ export function useDeliveryHistory(
   }, [options.invoiceNumber, options.limit, tick]);
 
   const resend = useCallback(async (id: number) => {
-    setIsResending(true);
+    setResendingIds(prev => new Set([...prev, id]));
     setResendError(null);
 
     try {
       await assertCanResend(id);
 
       await updateDeliveryStatus(id, 'queued', {
-        source: 'client_estimate',
+        source: 'user_action',
         detail: 'Manual resend requested',
       });
       refresh();
 
-      const result = await requestResend(id);
+      try {
+        const result = await requestResend(id);
 
-      if (result.success) {
-        await updateDeliveryStatus(id, 'sent', {
-          source:    'api_response',
-          detail:    'Resent successfully',
-          messageId: result.new_message_id,
-        });
-      } else {
+        if (result.success) {
+          await updateDeliveryStatus(id, 'sent', {
+            source:    'api_response',
+            detail:    'Resent successfully',
+            messageId: result.new_message_id,
+          });
+        } else {
+          await updateDeliveryStatus(id, 'failed', {
+            source:        'api_response',
+            failureReason: result.message,
+          });
+        }
+      } catch (apiErr) {
         await updateDeliveryStatus(id, 'failed', {
-          source:        'api_response',
-          failureReason: result.message,
-        });
+          source:        'client_estimate',
+          failureReason: apiErr instanceof Error ? apiErr.message : 'API request failed',
+        }).catch(() => {});
+        throw apiErr;
       }
     } catch (err) {
       if (err instanceof ResendError || (err instanceof Error && err.name === 'ResendError')) {
@@ -95,10 +104,10 @@ export function useDeliveryHistory(
       }
       throw err;
     } finally {
-      setIsResending(false);
+      setResendingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
       refresh();
     }
   }, [refresh]);
 
-  return { deliveries, isLoading, error, isResending, resendError, refresh, resend, clearResendError };
+  return { deliveries, isLoading, error, isResending: resendingIds.size > 0, resendingIds, resendError, refresh, resend, clearResendError };
 }

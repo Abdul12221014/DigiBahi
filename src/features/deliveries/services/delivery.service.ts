@@ -52,8 +52,11 @@ export function checkResend(delivery: InvoiceDelivery): ResendCheckResult {
     }
   }
 
-  if (delivery.lastSentAt) {
-    const elapsed = now - new Date(delivery.lastSentAt).getTime();
+  // Use lastSentAt if available; fall back to createdAt so a record that failed
+  // before lastSentAt was set still gets duplicate suppression.
+  const sentTime = delivery.lastSentAt ?? delivery.createdAt;
+  if (sentTime) {
+    const elapsed = now - new Date(sentTime).getTime();
     if (elapsed < DUPLICATE_SUPPRESS_MS) {
       return { allowed: false, reason: 'duplicate' };
     }
@@ -103,15 +106,21 @@ export async function createDelivery(
     updatedAt:      now,
   };
 
-  const id = await db.invoiceDeliveries.add(record);
-
-  await appendDeliveryEvent(id as number, {
-    status: 'queued',
-    source: 'client_estimate',
-    detail: 'Delivery record created',
+  const id = await db.transaction('rw', [db.invoiceDeliveries, db.deliveryEvents], async () => {
+    const rawId = await db.invoiceDeliveries.add(record);
+    if (rawId == null) throw new Error('createDelivery: DB did not return an ID');
+    const newId = rawId as number;
+    await db.deliveryEvents.add({
+      status:     'queued',
+      source:     'client_estimate' as const,
+      detail:     'Delivery record created',
+      deliveryId: newId,
+      timestamp:  now,
+    });
+    return newId;
   });
 
-  return id as number;
+  return id;
 }
 
 // ─── Update status ────────────────────────────────────────────────────────────
@@ -160,13 +169,16 @@ export async function updateDeliveryStatus(
     patch.lastRetryAt = now;
   }
 
-  await db.invoiceDeliveries.update(id, patch);
-
-  await appendDeliveryEvent(id, {
-    status,
-    source:   options.source,
-    detail:   options.detail,
-    metadata: options.metadata,
+  await db.transaction('rw', [db.invoiceDeliveries, db.deliveryEvents], async () => {
+    await db.invoiceDeliveries.update(id, patch);
+    await db.deliveryEvents.add({
+      status,
+      source:     options.source,
+      detail:     options.detail,
+      metadata:   options.metadata,
+      deliveryId: id,
+      timestamp:  now,
+    });
   });
 }
 
@@ -184,7 +196,8 @@ export async function assertCanResend(id: number): Promise<InvoiceDelivery> {
       max_retries_exceeded: `Max retries (${delivery.maxRetries}) exceeded`,
       invalid_status:       `Cannot resend from status '${delivery.status}'`,
     };
-    throw new ResendError(check.reason!, messages[check.reason!]);
+    const code = check.reason ?? 'invalid_status';
+    throw new ResendError(code, messages[code]);
   }
 
   return delivery;
@@ -216,7 +229,7 @@ export async function getDeliveryEventsByDelivery(deliveryId: number): Promise<D
 
 export async function cancelDelivery(id: number): Promise<void> {
   await updateDeliveryStatus(id, 'cancelled', {
-    source: 'client_estimate',
+    source: 'user_action',
     detail: 'Cancelled by user',
   });
 }

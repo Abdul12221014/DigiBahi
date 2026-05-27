@@ -62,7 +62,7 @@ export function ResendButton({ delivery, onResend, isResending }: ResendButtonPr
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onResend(delivery.id!)}>
+          <AlertDialogAction onClick={() => { if (delivery.id != null) onResend(delivery.id); }}>
             Resend
           </AlertDialogAction>
         </AlertDialogFooter>

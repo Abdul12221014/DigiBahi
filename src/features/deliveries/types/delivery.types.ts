@@ -26,7 +26,8 @@ export type StatusSource =
   | 'api_response'    // synchronous response from channel API call
   | 'webhook'         // inbound delivery/read receipt from Meta webhook
   | 'client_estimate' // frontend optimistic update (not yet confirmed)
-  | 'retry_worker';   // automatic retry scheduler
+  | 'retry_worker'    // automatic retry scheduler
+  | 'user_action';    // explicit user-initiated action (cancel, manual resend)
 
 // ─── Retry ───────────────────────────────────────────────────────────────────
 
