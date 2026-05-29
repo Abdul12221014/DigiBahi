@@ -92,6 +92,9 @@ export interface ResendResponse {
 }
 
 export async function requestResend(id: number): Promise<ResendResponse> {
+  if (!import.meta.env.VITE_API_URL) {
+    return { success: false, message: 'No backend configured — re-share using the invoice form.' };
+  }
   return request<ResendResponse>(`${DELIVERIES}/${id}/resend`, 'POST');
 }
 
