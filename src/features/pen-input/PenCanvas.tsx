@@ -63,10 +63,10 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     clearCanvas,
     undo,
     redo,
-    getContentBoundingBox, // NEW: For OCR optimization
+    getContentBoundingBox,
     handlePan,
     handleZoom,
-  } = useCanvas();
+  } = useCanvas(currentPage?.id);
 
   const { mode, tool, color, width, opacity } = usePenTool();
 
@@ -501,36 +501,12 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
   const handleOCRConfirm = useCallback((fields: { id: string; value: string }[]) => {
     if (!currentOCRData) return;
 
-    // Extract the main text from fields
     const mainText = fields.find(f => f.id === 'notes')?.value ||
       fields.map(f => f.value).join(' ');
 
-    // Create undoable command for OCR-created ledger entry
-    const ocrCommand = {
-      action: 'ocr-correction' as const,
-      type: 'ocr' as const,
-      id: `ocr_${Date.now()}`,
-      data: {
-        recognizedText: currentOCRData.text,
-        correctedFields: fields,
-        confidence: currentOCRData.confidence,
-        imageHash: currentOCRData.imageHash
-      },
-      metadata: {
-        timestamp: Date.now(),
-        sessionId: sessionStorage.getItem('sessionId') || `session_${Date.now()}`
-      }
-    };
-
-    // Push to history service for undo/redo support
-    // Note: This is a placeholder - actual integration would use history.service
-    console.log('OCR Command for history:', ocrCommand);
-
-    // Call the parent callback with the confirmed text
-    // Parent (Index.tsx) will handle actual ledger entry creation
+    // Deliver confirmed text to parent — parent owns ledger entry creation
     onRecognized(mainText);
 
-    // Close the confirm dialog
     setShowOCRConfirm(false);
     setCurrentOCRData(null);
 

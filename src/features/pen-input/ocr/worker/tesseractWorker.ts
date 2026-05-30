@@ -130,20 +130,12 @@ async function runTesseract(
       : `${input.width}x${input.height}`;
 
     console.log(`[OCR Worker] Starting recognition, input type: ${inputType}, size: ${dimensions}`);
-    console.log("═══ OCR WORKER DEBUG START ═══");
-    console.log("[OCR Worker] Input instanceof Blob:", input instanceof Blob);
-    console.log("[OCR Worker] Input instanceof ImageData:", input instanceof ImageData);
 
     // Tesseract.js types don't cover all input modes (Blob); cast is required here
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await tesseractWorker.recognize(input as any);
     const data = result.data as { text: string; confidence: number; words?: Array<{ text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }> };
 
-    console.log("[OCR Worker] ✅ Tesseract completed, result exists:", !!result);
-    console.log("[OCR Worker] result.data exists:", !!result?.data);
-    console.log("[OCR Worker] 📊 Text:", data.text ? `"${data.text}"` : "EMPTY");
-    console.log("[OCR Worker] 📊 Confidence:", data.confidence);
-    console.log("[OCR Worker] 📊 Words:", data.words?.length || 0);
     console.log('[OCR Worker] Recognition complete, words found:', data.words?.length || 0);
 
     // Parse Tesseract results
@@ -184,8 +176,6 @@ async function runTesseract(
         }
       });
     }
-    console.log("═══ FINAL RESULTS:", results.length, "items ═══");
-
     console.log('[OCR Worker] Parsed results:', results.length);
     return results;
   } catch (error) {

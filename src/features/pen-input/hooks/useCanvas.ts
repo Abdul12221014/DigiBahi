@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StrokeEngine } from '../services/strokeEngine';
 import History, { Command } from '../services/history.service';
-import { saveStroke, loadAll, deleteStroke } from '@/lib/localStore';
+import { saveStroke, loadAll, deleteStroke, loadStrokesByPage } from '@/lib/localStore';
 import type { Stroke, StrokePoint } from '../types/pen.types';
 
 type StrokeWithCache = Stroke & { lastDrawnIndex?: number; ctxStateSet?: boolean };
@@ -15,7 +15,7 @@ import { GeometryService } from '../services/geometry.service';
 
 const DPR = () => window.devicePixelRatio || 1;
 
-export function useCanvas() {
+export function useCanvas(pageId?: string) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,16 +92,30 @@ export function useCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawBackground, config.height]);
 
+  // Layout effect: ResizeObserver — independent of page data
   useEffect(() => {
     const ro = new ResizeObserver(() => resizeToContainer());
     if (containerRef.current) ro.observe(containerRef.current);
     resizeToContainer();
-    // Load session strokes
-    loadAll().then(data => {
-      if (Array.isArray(data.strokes)) setStrokes(data.strokes as Stroke[]);
-    });
     return () => ro.disconnect();
   }, [resizeToContainer]);
+
+  // Data effect: load strokes for the current page (or all if unscoped)
+  // Re-runs whenever the active page changes so navigation swaps content correctly.
+  useEffect(() => {
+    let cancelled = false;
+    setStrokes([]); // clear immediately to avoid showing the previous page while loading
+
+    const loadFn: Promise<unknown[]> = pageId
+      ? loadStrokesByPage(pageId)
+      : loadAll().then(data => (Array.isArray(data.strokes) ? data.strokes : []));
+
+    loadFn.then(loaded => {
+      if (!cancelled) setStrokes(loaded as Stroke[]);
+    });
+
+    return () => { cancelled = true; };
+  }, [pageId]);
 
   const getPattern = useCallback((ctx: CanvasRenderingContext2D, color: string, opacity: number) => {
     const key = `${color}-${opacity}`;
@@ -212,22 +226,46 @@ export function useCanvas() {
   }, [strokes, getPattern]);
 
   const addStrokeCommand = useCallback((stroke: Stroke): Command => ({
-    do: () => { setStrokes(prev => [...prev, stroke]); requestIdleCallback?.(() => saveStroke(stroke)); },
-    undo: () => setStrokes(prev => prev.filter(s => s.id !== stroke.id)),
-  }), []);
+    do: () => {
+      setStrokes(prev => [...prev, stroke]);
+      // requestIdleCallback is unavailable in Safari/iOS; fall back to setTimeout(0)
+      const save = () => saveStroke(stroke, undefined, pageId);
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(save);
+      } else {
+        setTimeout(save, 0);
+      }
+    },
+    undo: () => {
+      setStrokes(prev => prev.filter(s => s.id !== stroke.id));
+      // Remove from IndexedDB so the stroke doesn't reappear on page refresh
+      deleteStroke(stroke.id);
+    },
+  }), [pageId]);
 
   const deleteStrokeCommand = useCallback((stroke: Stroke): Command => ({
     do: () => { setStrokes(prev => prev.filter(s => s.id !== stroke.id)); deleteStroke(stroke.id); },
-    undo: () => { setStrokes(prev => [...prev, stroke]); saveStroke(stroke); },
-  }), []);
+    // Re-save under the same pageId when undoing an object-eraser deletion
+    undo: () => { setStrokes(prev => [...prev, stroke]); saveStroke(stroke, undefined, pageId); },
+  }), [pageId]);
 
+  // clearCommand captures the live strokes snapshot at creation time (= time of clearCanvas call).
+  // do()  deletes every captured stroke from IndexedDB so they don't reappear on refresh.
+  // undo() re-saves them.
+  // clearCommand must depend on `strokes` so the captured snapshot is always up-to-date.
   const clearCommand = useCallback((): Command => {
-    let prev: Stroke[] = [];
+    const captured = strokes; // snapshot at call time
     return {
-      do: () => setStrokes(p => (prev = p, [])),
-      undo: () => setStrokes(prev),
+      do: () => {
+        setStrokes([]);
+        captured.forEach(s => { if (s.id) deleteStroke(s.id); });
+      },
+      undo: () => {
+        setStrokes(captured);
+        captured.forEach(s => saveStroke(s, undefined, pageId));
+      },
     };
-  }, []);
+  }, [strokes, pageId]);
 
   // Public API used by pointer events
   const beginStroke = useCallback((p: StrokePoint) => {

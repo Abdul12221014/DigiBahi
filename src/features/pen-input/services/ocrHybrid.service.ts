@@ -269,13 +269,13 @@ export default class OCRHybridService {
 
       worker.postMessage({ type, payload, id });
 
-      // Timeout after 10 seconds (reduced from 30s for faster feedback)
+      // Timeout after 30 seconds — Tesseract on Raspberry Pi can take 20-25s on first run
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error('OCR request timeout'));
         }
-      }, 10000);
+      }, 30000);
     });
   }
 
@@ -293,20 +293,30 @@ export default class OCRHybridService {
 
   /**
    * Recognize text from canvas.
-   * Primary: Google Cloud Vision via backend.
+   * Primary: Google Cloud Vision via backend (only when VITE_OCR_SERVICE_URL is set).
    * Fallback: Tesseract.js web worker (local, offline-capable).
+   *
+   * We only attempt the backend when VITE_OCR_SERVICE_URL is explicitly configured.
+   * Deriving a URL from the hostname (getApiBaseUrl default) always produces a valid
+   * URL even when no backend is running, which would cause every OCR call to silently
+   * fail through a network timeout before reaching Tesseract.
    */
   async recognizeCanvas(
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    try {
-      console.log('[OCRHybridService] Attempting backend OCR (Cloud Vision)');
-      return await this.recognizeWithBackend(canvasEl, options);
-    } catch (backendError) {
-      console.warn('[OCRHybridService] Backend OCR failed, falling back to Tesseract.js worker:', backendError);
-      return await this.recognizeWithWorker(canvasEl, options);
+    const hasExplicitBackend = Boolean(import.meta.env?.VITE_OCR_SERVICE_URL);
+
+    if (hasExplicitBackend) {
+      try {
+        console.log('[OCRHybridService] Attempting backend OCR (Cloud Vision)');
+        return await this.recognizeWithBackend(canvasEl, options);
+      } catch (backendError) {
+        console.warn('[OCRHybridService] Backend OCR failed, falling back to Tesseract.js worker:', backendError);
+      }
     }
+
+    return await this.recognizeWithWorker(canvasEl, options);
   }
 
   /**

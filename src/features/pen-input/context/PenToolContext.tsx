@@ -27,11 +27,9 @@ export const PenToolProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [mode, setMode] = useState<'draw' | 'shape' | 'ocr'>('draw');
   const [eraserMode, setEraserMode] = useState<'pixel' | 'object'>('pixel');
 
-  // Enhanced setTool with logging and validation
   const handleSetTool = useCallback((newTool: DrawingTool) => {
-    console.log(`[PenToolContext] Tool changed from ${tool} to ${newTool}`);
     setTool(newTool);
-  }, [tool]);
+  }, []);
 
   const value = useMemo(() => ({
     tool,

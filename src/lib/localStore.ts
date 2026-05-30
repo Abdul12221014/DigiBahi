@@ -3,7 +3,7 @@ import { getPenPin } from './penSession';
 
 // strokeId is stored in plaintext so rows can be located and deleted by the
 // canvas engine without requiring full-table decryption.
-export interface StrokeRow { id?: number; strokeId?: string; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
+export interface StrokeRow { id?: number; strokeId?: string; pageId?: string; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
 export interface ShapeRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
 export interface OcrRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
 export interface OCRCorrectionRow { id?: number; payload: ArrayBuffer; iv: ArrayBuffer; salt: ArrayBuffer; createdAt: number }
@@ -187,6 +187,19 @@ class PenDB extends Dexie {
       notebookPages: '++id, pageId, pageNumber, createdAt, updatedAt',
       notebookSections: '++id, sectionId, createdAt',
     });
+
+    // Version 8: Add pageId index to strokes so they can be loaded per notebook page.
+    // Pre-v8 rows have no pageId and are loaded only by the unscoped loadAll() path.
+    this.version(8).stores({
+      strokes: '++id, strokeId, pageId, createdAt',
+      shapes: '++id, createdAt',
+      ocr: '++id, createdAt',
+      ocrCorrections: '++id, createdAt',
+      ocrTelemetry: '++id, createdAt',
+      consent: '++id, createdAt',
+      notebookPages: '++id, pageId, pageNumber, createdAt, updatedAt',
+      notebookSections: '++id, sectionId, createdAt',
+    });
   }
 }
 
@@ -222,11 +235,21 @@ export async function decryptObject<T>(payload: ArrayBuffer, iv: ArrayBuffer, sa
 }
 
 // Save helpers — PIN defaults to the current session key (set at login).
-export async function saveStroke(payload: unknown, pin?: string) {
+export async function saveStroke(payload: unknown, pin?: string, pageId?: string) {
   const activePin = pin ?? getPenPin();
   const strokeId = (payload as { id?: string }).id ?? '';
   const { payload: data, iv, salt } = await encryptObject(payload, activePin);
-  return penDB.strokes.add({ strokeId, payload: data, iv, salt, createdAt: Date.now() });
+  return penDB.strokes.add({ strokeId, pageId, payload: data, iv, salt, createdAt: Date.now() });
+}
+
+/**
+ * Load all strokes belonging to a specific notebook page.
+ * Returns an empty array if no strokes exist for that page.
+ */
+export async function loadStrokesByPage(pageId: string, pin?: string): Promise<unknown[]> {
+  pin = pin ?? getPenPin();
+  const rows = await penDB.strokes.where('pageId').equals(pageId).toArray();
+  return Promise.all(rows.map(r => decryptObject<unknown>(r.payload, r.iv, r.salt, pin)));
 }
 export async function saveShape(payload: unknown, pin?: string) {
   const activePin = pin ?? getPenPin();

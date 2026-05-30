@@ -21,17 +21,16 @@ export function normalizeNumbers(text: string): string {
   };
   
   let normalized = text;
-  
-  // Convert Devanagari numerals
+
+  // Convert Devanagari numerals to Western digits — safe for all text
   Object.entries(devanagariMap).forEach(([dev, west]) => {
     normalized = normalized.replace(new RegExp(dev, 'g'), west);
   });
-  
-  // Remove common OCR artifacts near numbers
-  normalized = normalized.replace(/[oO]/g, '0'); // Common O->0 confusion
-  normalized = normalized.replace(/[lI]/g, '1'); // Common l/I->1 confusion
-  normalized = normalized.replace(/[Ss]/g, '5'); // Common S->5 confusion in some contexts
-  
+
+  // NOTE: ASCII letter-to-digit substitutions (O→0, l→1, S→5) were removed.
+  // They corrupted common accounting words ("Sale"→"5ale", "Invoice"→"Inv0ice").
+  // Digit confusion fixes are applied narrowly inside parseCurrency() only.
+
   return normalized;
 }
 
@@ -40,10 +39,13 @@ export function normalizeNumbers(text: string): string {
  */
 export function parseCurrency(text: string): { amount: number | null; raw: string } {
   if (!text) return { amount: null, raw: text };
-  
-  // Normalize first
-  const normalized = normalizeNumbers(text);
-  
+
+  // Normalize Devanagari digits, then apply digit-confusion fixes narrowly
+  // (O\u21920 and l\u21921 are only safe in the context of numeric strings)
+  const normalized = normalizeNumbers(text)
+    .replace(/[oO]/g, '0')
+    .replace(/[lI]/g, '1');
+
   // Remove currency symbols and common prefixes
   const cleaned = normalized
     .replace(/[\u20b9Rs.]/gi, '')

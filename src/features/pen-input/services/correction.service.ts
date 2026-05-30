@@ -12,6 +12,7 @@ import {
   loadOCRCorrections,
   type OCRCorrection
 } from '@/lib/localStore';
+import { getPenPin } from '@/lib/penSession';
 import type { OCRResult } from './ocrHybrid.service';
 
 /**
@@ -31,13 +32,15 @@ export class CorrectionService {
   private initialized = false;
 
   /**
-   * Initialize service and load corrections from IndexedDB
+   * Initialize service and load corrections from IndexedDB.
+   * Uses the active session PIN so corrections are encrypted consistently with all other data.
    */
-  async initialize(pin = '1234'): Promise<void> {
+  async initialize(pin?: string): Promise<void> {
     if (this.initialized) return;
 
+    const activePin = pin ?? getPenPin();
     try {
-      this.corrections = await loadOCRCorrections(pin);
+      this.corrections = await loadOCRCorrections(activePin);
       this.buildCorrectionMap();
       this.initialized = true;
       console.log(`[CorrectionService] Loaded ${this.corrections.length} corrections`);
@@ -60,11 +63,12 @@ export class CorrectionService {
   }
 
   /**
-   * Save a new correction
+   * Save a new correction using the active session PIN.
    */
-  async saveCorrection(correction: OCRCorrection, pin = '1234'): Promise<void> {
+  async saveCorrection(correction: OCRCorrection, pin?: string): Promise<void> {
+    const activePin = pin ?? getPenPin();
     try {
-      await saveOCRCorrection(correction, pin);
+      await saveOCRCorrection(correction, activePin);
       this.corrections.push(correction);
 
       const normalized = this.normalizeText(correction.recognizedText);

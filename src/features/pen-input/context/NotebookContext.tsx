@@ -68,21 +68,17 @@ export function NotebookProvider({ children }: NotebookProviderProps) {
     try {
       setLoading(true);
       const loadedPages = await listPages();
-      
+
       if (loadedPages.length === 0) {
-        // Create initial page if none exists
         const initialPage = await ensureInitialPage();
         setPages([initialPage]);
         setCurrentPageIndex(0);
       } else {
-        // Sort by page number
         const sortedPages = loadedPages.sort((a, b) => a.pageNumber - b.pageNumber);
         setPages(sortedPages);
-        
-        // Keep current index if valid, otherwise reset to 0
-        if (currentPageIndex >= sortedPages.length) {
-          setCurrentPageIndex(0);
-        }
+        // Clamp via functional updater — avoids stale closure on currentPageIndex
+        // and eliminates the cascade re-render caused by having it as a dep.
+        setCurrentPageIndex(prev => (prev >= sortedPages.length ? 0 : prev));
       }
     } catch (error) {
       console.error('[NotebookContext] Error loading pages:', error);
@@ -90,7 +86,7 @@ export function NotebookProvider({ children }: NotebookProviderProps) {
     } finally {
       setLoading(false);
     }
-  }, [currentPageIndex]);
+  }, []); // no deps — functional updater reads latest index at flush time
   
   // Load pages on mount
   useEffect(() => {
