@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from ...api.deps import get_current_session
-from ...main import limiter
+from ...rate_limit import limiter
 import pytesseract
 from typing import Optional
 import base64

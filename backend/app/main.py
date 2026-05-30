@@ -5,18 +5,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .db.base import Base, engine
-
-# ─── Rate limiter (shared instance) ─────────────────────────────────────────
-# Key: X-Device-ID header when present, falls back to IP.
-# Import this in routers that need rate limits: from app.main import limiter
-def _device_or_ip(request: Request) -> str:
-    return request.headers.get("X-Device-ID") or get_remote_address(request)
-
-limiter = Limiter(key_func=_device_or_ip)
+from .rate_limit import limiter
 
 logging.basicConfig(
     level=logging.INFO,

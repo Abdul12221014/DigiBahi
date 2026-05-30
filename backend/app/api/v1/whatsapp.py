@@ -18,7 +18,7 @@ from ...db.base import get_db
 from ...db import models
 from ..deps import get_current_session
 from ...db.models import Session as SessionModel
-from ...main import limiter
+from ...rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/whatsapp", tags=["whatsapp"])
