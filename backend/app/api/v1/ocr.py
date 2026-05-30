@@ -54,7 +54,7 @@ class OCRRequest(BaseModel):
 
 @router.post("/recognize")
 @limiter.limit("10/minute")
-def recognize(http_request: Request, req: OCRRequest, _session=Depends(get_current_session)):
+def recognize(request: Request, req: OCRRequest, _session=Depends(get_current_session)):
     try:
         img_bytes = base64.b64decode(req.image_base64)
     except Exception as exc:
@@ -76,7 +76,7 @@ def recognize(http_request: Request, req: OCRRequest, _session=Depends(get_curre
 
 @router.post("/recognize-cloud")
 @limiter.limit("10/minute")
-def recognize_cloud(http_request: Request, req: OCRRequest, _session=Depends(get_current_session)):
+def recognize_cloud(request: Request, req: OCRRequest, _session=Depends(get_current_session)):
     if not VISION_ENABLED:
         raise HTTPException(status_code=501, detail="Google Cloud Vision is not configured on this server.")
     try:

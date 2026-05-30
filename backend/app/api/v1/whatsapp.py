@@ -102,7 +102,7 @@ class SendReportResponse(BaseModel):
 
 @router.post("/send-otp", response_model=SendOTPResponse)
 @limiter.limit("3/minute")
-async def send_otp(http_request: Request, request: SendOTPRequest, db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
+async def send_otp(request: Request, body: SendOTPRequest, db: Session = Depends(get_db), _session: SessionModel = Depends(get_current_session)):
     """
     Send OTP via WhatsApp Business API.
     OTP is stored in SQLite (survives restarts). Plaintext OTP is never persisted — only a sha256 hash.
@@ -113,7 +113,7 @@ async def send_otp(http_request: Request, request: SendOTPRequest, db: Session =
             detail="WhatsApp service not configured. Please check environment variables."
         )
 
-    phone = _normalize_phone(request.phone_number)
+    phone = _normalize_phone(body.phone_number)
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number must contain digits only.")
 
@@ -123,7 +123,7 @@ async def send_otp(http_request: Request, request: SendOTPRequest, db: Session =
         result = whatsapp_service.send_otp(
             phone_number=phone,
             otp_code=otp_code,
-            template_name=request.template_name
+            template_name=body.template_name
         )
 
         if not result.get("success"):
@@ -143,7 +143,7 @@ async def send_otp(http_request: Request, request: SendOTPRequest, db: Session =
                 raise HTTPException(
                     status_code=400,
                     detail=(
-                        f"Template '{request.template_name}' not found or not approved. "
+                        f"Template '{body.template_name}' not found or not approved. "
                         "Create and approve the template in WhatsApp Manager: "
                         "https://business.facebook.com/wa/manage/message-templates/"
                     )
