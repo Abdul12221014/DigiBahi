@@ -51,6 +51,17 @@ interface RecognitionResult {
 }
 
 function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
+  // NOTE: usePenTool and useNotebook MUST come before useCanvas
+  // because useCanvas(currentPage?.id) depends on currentPage being defined first.
+  const { mode, tool, color, width, opacity } = usePenTool();
+
+  // Notebook context for multi-page support
+  const {
+    currentPage,
+    updateCurrentPage,
+    savePage
+  } = useNotebook();
+
   const {
     canvasRef,
     backgroundCanvasRef,
@@ -67,15 +78,6 @@ function PenCanvasInner({ onRecognized, onClose }: PenCanvasProps) {
     handlePan,
     handleZoom,
   } = useCanvas(currentPage?.id);
-
-  const { mode, tool, color, width, opacity } = usePenTool();
-
-  // NEW: Notebook context for multi-page support
-  const {
-    currentPage,
-    updateCurrentPage,
-    savePage
-  } = useNotebook();
   const [pendingShape, setPendingShape] = useState<ShapeDetection | null>(null);
   const [recognitionResults, setRecognitionResults] = useState<RecognitionResult[]>([]);
   const [recognizing, setRecognizing] = useState(false);
