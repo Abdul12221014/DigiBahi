@@ -13,7 +13,7 @@ from google.cloud import vision
 
 logger = logging.getLogger("ocr-api")
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1/ocr", tags=["ocr"])
 
 import json
 

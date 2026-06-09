@@ -305,7 +305,11 @@ export default class OCRHybridService {
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    const hasExplicitBackend = Boolean(import.meta.env?.VITE_OCR_SERVICE_URL);
+    // Try backend when either the dedicated OCR URL or the main API URL is configured.
+    // VITE_API_URL is always set on Render, so we can always attempt the backend.
+    const hasExplicitBackend = Boolean(
+      import.meta.env?.VITE_OCR_SERVICE_URL || import.meta.env?.VITE_API_URL
+    );
 
     if (hasExplicitBackend) {
       try {
@@ -328,12 +332,14 @@ export default class OCRHybridService {
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
     try {
-      // Convert canvas to blob (avoids ImageData cross-thread cloning issues)
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvasEl.toBlob(b => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), 'image/png');
-      });
+      // PREPROCESSING: Flatten transparent background + crop + normalize resolution.
+      // Tesseract performs very poorly on:
+      //   1. Transparent canvases (treats alpha as noise)
+      //   2. Oversized images (high DPR canvases are 2-3x bigger than needed)
+      // We create a pre-processed canvas with white background at ~150 DPI equivalent.
+      const processedBlob = await this._preprocessCanvasForTesseract(canvasEl, options.boundingBox);
 
-      const result = await this.sendMessage('recognize', { blob, options });
+      const result = await this.sendMessage('recognize', { blob: processedBlob, options });
       if (!result) return [];
 
       const allResults: OCRResult[] = [
@@ -350,6 +356,54 @@ export default class OCRHybridService {
   }
 
   /**
+   * Preprocess canvas for Tesseract.js:
+   * - Flatten to white background (transparent = noise for Tesseract)
+   * - Crop to bounding box if provided (reduces image size, improves focus)
+   * - Scale to target width (~1200px) so Tesseract works at consistent resolution
+   */
+  private async _preprocessCanvasForTesseract(
+    canvasEl: HTMLCanvasElement,
+    boundingBox?: { x: number; y: number; width: number; height: number }
+  ): Promise<Blob> {
+    const TARGET_WIDTH = 1200; // px — good balance of detail vs. speed for Tesseract
+
+    // Determine source region
+    const sx = boundingBox?.x ?? 0;
+    const sy = boundingBox?.y ?? 0;
+    const sw = boundingBox?.width ?? canvasEl.width;
+    const sh = boundingBox?.height ?? canvasEl.height;
+
+    // Calculate output size maintaining aspect ratio
+    const aspectRatio = sh / sw;
+    const outW = Math.min(TARGET_WIDTH, sw); // Don't upscale
+    const outH = Math.round(outW * aspectRatio);
+
+    const out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    const ctx = out.getContext('2d');
+    if (!ctx) {
+      // Fallback: return raw canvas blob
+      return new Promise<Blob>((resolve, reject) =>
+        canvasEl.toBlob(b => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), 'image/png')
+      );
+    }
+
+    // Step 1: White background (critical — Tesseract reads transparency as dark noise)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, outW, outH);
+
+    // Step 2: Draw strokes on top, scaled to output size
+    ctx.drawImage(canvasEl, sx, sy, sw, sh, 0, 0, outW, outH);
+
+    console.log(`[OCRHybridService] Preprocessed for Tesseract: ${sw}x${sh}px → ${outW}x${outH}px (white bg)`);
+
+    return new Promise<Blob>((resolve, reject) =>
+      out.toBlob(b => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), 'image/png')
+    );
+  }
+
+  /**
    * Recognize text using backend OCR service (Tesseract native)
    * This is the preferred method for Linux tablets (Raspberry Pi)
    * 
@@ -359,11 +413,17 @@ export default class OCRHybridService {
     canvasEl: HTMLCanvasElement,
     options: RecognizeOptions = {}
   ): Promise<OCRResult[]> {
-    // Use standard Backend API Base URL now that OCR is merged into the central backend app
-    const ocrBase = import.meta.env?.VITE_OCR_SERVICE_URL || getApiBaseUrl();
-    
-    // Call the new Google Cloud Vision endpoint
-    const ocrEndpoint = `${ocrBase}/recognize-cloud`;
+    // Resolve base URL: prefer explicit OCR URL, then main API URL, then auto-detect.
+    // On Render, VITE_API_URL is set to the backend service URL — use it directly.
+    // getApiBaseUrl() is only used as a last resort to avoid guessing wrong ports.
+    const ocrBase = (
+      import.meta.env?.VITE_OCR_SERVICE_URL ||
+      import.meta.env?.VITE_API_URL ||
+      getApiBaseUrl()
+    ) as string;
+
+    // Call the Google Cloud Vision endpoint (matches router prefix /api/v1/ocr)
+    const ocrEndpoint = `${ocrBase}/api/v1/ocr/recognize-cloud`;
 
     // NEW: Smart cropping - create temporary canvas if bounding box provided
     let targetCanvas = canvasEl;
@@ -408,9 +468,13 @@ export default class OCRHybridService {
     try {
       this.onProgress?.(0.3); // Indicate processing started
 
+      const sessionToken = localStorage.getItem('digbahi_session_token') || '';
       const response = await fetch(ocrEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
+        },
         body: JSON.stringify({ image_base64: base64 })
       });
 

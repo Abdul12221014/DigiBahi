@@ -112,13 +112,17 @@ async def security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     # Block inline scripts — the primary XSS vector for localStorage token theft.
     # 'self' + the CORS origins list (which includes the Vite dev server) are permitted.
+    # worker-src blob: allows Tesseract.js to spawn its OCR web worker via blob: URL.
+    # wasm-unsafe-eval allows Tesseract.js WASM module to compile (required by browsers).
     script_origins = " ".join(origins)
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' {script_origins}; "
+        f"script-src 'self' 'wasm-unsafe-eval' {script_origins}; "
         f"style-src 'self' 'unsafe-inline'; "
         f"connect-src 'self' {script_origins} ws: wss:; "
         f"img-src 'self' data: blob:; "
+        f"worker-src blob: 'self'; "
+        f"child-src blob: 'self'; "
         f"frame-ancestors 'none'"
     )
     return response

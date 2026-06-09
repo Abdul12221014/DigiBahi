@@ -12,7 +12,7 @@
  * 3. localhost (fallback for development)
  */
 export function getApiBaseUrl(): string {
-  // Check if VITE_API_URL is explicitly set
+  // Check if VITE_API_URL is explicitly set (always prefer this)
   const envUrl = import.meta.env?.VITE_API_URL;
   if (envUrl) {
     return envUrl;
@@ -22,13 +22,17 @@ export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    // If accessing via IP or non-localhost, use that hostname
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+
+    // Only append :8000 for private LAN IPs (the Linux tablet / local network use-case).
+    // On cloud hosts (Render, Vercel, etc.) the backend is on a different service URL
+    // and the VITE_API_URL env var should always be set — this branch is a last resort.
+    const isPrivateLanIp = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname);
+    if (isPrivateLanIp) {
       return `${protocol}//${hostname}:8000`;
     }
   }
 
-  // Fallback to localhost
+  // Fallback to localhost for local development
   return 'http://localhost:8000';
 }
 

@@ -80,14 +80,14 @@ async function initialize(language: string = 'eng+hin'): Promise<void> {
 
     console.log(`[OCR Worker] Languages (${language}) loaded, setting parameters...`);
 
-    // Set recognition parameters optimized for handwriting
-    // PSM 7 = single text line (better for handwriting than PSM 8)
-    // NOTE: tessedit_ocr_engine_mode CANNOT be set after initialization
-    // It must be set during createWorker or not at all
+    // Set recognition parameters optimized for handwriting on tablets
+    // PSM 6 = uniform block of text — handles multi-word/multi-line better than PSM 7 (single line)
+    // PSM 7 was too restrictive: a single short word was often missed if strokes weren't perfectly aligned
     if (tesseractWorker.setParameters) {
       await tesseractWorker.setParameters({
-        tessedit_pageseg_mode: 7, // Single text line (better for handwriting than single word)
-        // tessedit_ocr_engine_mode: 3, // REMOVED - cannot be set post-init, causes worker crash
+        tessedit_pageseg_mode: 6,           // Uniform block — best for tablet handwriting
+        user_defined_dpi: 300,              // Tablet high-DPR displays need explicit DPI hint (default 70 is wrong)
+        tessedit_char_blacklist: '|\\`~^', // Remove common noise glyphs that appear instead of text
       });
     }
 
